@@ -13,11 +13,12 @@
     <a href="members.html" aria-label="Til medlemslisten"><img src="logo.png" alt="Oslo Førerhundklubb" class="logo"></a>
     <nav aria-label="Medlemsportal" class="main-nav">
       <a href="members.html">Medlemmer</a>
-      <a href="index.html">Logg ut</a>
+      <a href="index.html" data-logout>Logg ut</a>
     </nav>
   </div>
 </header>
 <main id="innhold" class="container narrow" tabindex="-1">
+  <div id="fatal-status" class="fatal" role="alert" tabindex="-1" hidden></div>
   <p><a href="members.html">← Tilbake til medlemslisten</a></p>
   <h1 id="person-heading">Rediger person</h1>
   <form id="person-form" class="panel">
@@ -35,17 +36,13 @@
     </div>
     <div class="field">
       <label for="person-role">Rolle</label>
-      <select id="person-role" name="role">
-        <option>Ekvipasje</option>
-        <option>Hjelpetrener</option>
-        <option>Dyrepleier</option>
-        <option>Medlem</option>
-      </select>
+      <select id="person-role" name="role"></select>
     </div>
     <fieldset>
-      <legend>Status</legend>
-      <label><input type="radio" name="status" value="active" checked> Aktiv</label>
+      <legend>Medlemsstatus</legend>
+      <label><input type="radio" name="status" value="active"> Aktiv</label>
       <label><input type="radio" name="status" value="inactive"> Inaktiv</label>
+      <label><input type="radio" name="status" value="resigned"> Utmeldt</label>
     </fieldset>
     <div class="actions">
       <button class="button" type="submit">Lagre endringer</button>
@@ -54,6 +51,8 @@
     <p id="form-status" class="status" role="status" aria-live="polite"></p>
   </form>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

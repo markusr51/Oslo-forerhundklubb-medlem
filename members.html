@@ -16,28 +16,26 @@
       <a href="#" data-coming-soon>Grupper</a>
       <a href="#" data-coming-soon>Arrangementer</a>
       <a href="#" data-coming-soon>Kommunikasjon</a>
-      <a href="index.html">Logg ut</a>
+      <a href="index.html" data-logout>Logg ut</a>
     </nav>
   </div>
 </header>
 <main id="innhold" class="container" tabindex="-1">
+  <div id="fatal-status" class="fatal" role="alert" tabindex="-1" hidden></div>
   <h1>Medlemmer</h1>
-  <p class="lead">Testgrensesnitt. Ingen ekte medlemsdata vises i denne versjonen.</p>
+  <p class="lead">Medlemsregister for Oslo Førerhundklubb.</p>
+  <p id="page-status" class="status" role="status" aria-live="polite"></p>
 
   <section class="toolbar" aria-labelledby="search-heading">
     <h2 id="search-heading">Søk og filtrer</h2>
     <div class="field">
-      <label for="member-search">Søk etter navn, e-post eller telefon</label>
+      <label for="member-search">Søk etter navn, e-post, telefon eller rolle</label>
       <input id="member-search" type="search" autocomplete="off">
     </div>
     <div class="field">
       <label for="role-filter">Rolle</label>
       <select id="role-filter">
         <option value="">Alle roller</option>
-        <option>Ekvipasje</option>
-        <option>Hjelpetrener</option>
-        <option>Dyrepleier</option>
-        <option>Medlem</option>
       </select>
     </div>
     <button class="button-secondary" id="clear-filters" type="button">Nullstill søk</button>
@@ -49,7 +47,7 @@
     <h2 id="list-heading">Medlemsliste</h2>
     <div class="table-wrap">
       <table>
-        <caption class="sr-only">Testmedlemmer med kontaktinformasjon, rolle og status</caption>
+        <caption class="sr-only">Medlemmer med kontaktinformasjon, rolle og status</caption>
         <thead>
           <tr>
             <th scope="col">Navn</th>
@@ -65,6 +63,8 @@
     </div>
   </section>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
