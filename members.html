@@ -13,6 +13,8 @@
     <a href="members.html" aria-label="Til medlemsportalens forside"><img src="logo.png" alt="Oslo Førerhundklubb" class="logo"></a>
     <nav aria-label="Medlemsportal" class="main-nav">
       <a aria-current="page" href="members.html">Medlemmer</a>
+      <a href="new-person.html">Legg til person</a>
+      <a href="admins.html">Brukere og tilganger</a>
       <a href="#" data-coming-soon>Grupper</a>
       <a href="#" data-coming-soon>Arrangementer</a>
       <a href="#" data-coming-soon>Kommunikasjon</a>
@@ -26,6 +28,8 @@
   <p class="lead">Medlemsregister for Oslo Førerhundklubb.</p>
   <p id="page-status" class="status" role="status" aria-live="polite"></p>
 
+  <p><a class="button" href="new-person.html">Legg til ny person</a></p>
+
   <section class="toolbar" aria-labelledby="search-heading">
     <h2 id="search-heading">Søk og filtrer</h2>
     <div class="field">
@@ -36,6 +40,15 @@
       <label for="role-filter">Rolle</label>
       <select id="role-filter">
         <option value="">Alle roller</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="status-filter">Status</label>
+      <select id="status-filter">
+        <option value="">Alle statuser</option>
+        <option value="active">Aktiv</option>
+        <option value="inactive">Inaktiv</option>
+        <option value="resigned">Utmeldt</option>
       </select>
     </div>
     <button class="button-secondary" id="clear-filters" type="button">Nullstill søk</button>
