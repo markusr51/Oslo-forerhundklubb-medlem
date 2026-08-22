@@ -1,90 +1,44 @@
-(function () {
-  'use strict';
-  const config = window.OFK_CONFIG || {};
-  const supabaseFactory = window.supabase;
-  const supabaseClient = (supabaseFactory && config.SUPABASE_URL && config.SUPABASE_PUBLISHABLE_KEY)
-    ? supabaseFactory.createClient(config.SUPABASE_URL, config.SUPABASE_PUBLISHABLE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
-    : null;
+const cfg = window.APP_CONFIG;
+const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabasePublishableKey);
 
-  function announce(id, message, isError = false) { const el = document.getElementById(id); if (!el) return; el.textContent = message; el.classList.toggle('error', Boolean(isError)); }
-  function setBusy(button, busy, busyText, normalText) { if (!button) return; button.disabled = busy; button.setAttribute('aria-busy', busy ? 'true' : 'false'); button.textContent = busy ? busyText : normalText; }
-  function showFatal(message) { const fatal = document.getElementById('fatal-status'); if (fatal) { fatal.hidden = false; fatal.textContent = message; fatal.focus(); } }
-  async function getSession() { if (!supabaseClient) return null; const { data, error } = await supabaseClient.auth.getSession(); if (error) throw error; return data.session; }
-  async function requireSession() { const session = await getSession(); if (!session) { const current = encodeURIComponent(window.location.pathname.split('/').pop() + window.location.search); window.location.replace(`index.html?next=${current}`); return null; } return session; }
-  async function getProfile(userId) { const { data, error } = await supabaseClient.from('app_users').select('user_id, display_name, app_role, active').eq('user_id', userId).single(); if (error) throw error; return data; }
-  async function requireSystemAdmin() { const session = await requireSession(); if (!session) return null; const profile = await getProfile(session.user.id); if (!profile.active || profile.app_role !== 'system_admin') { showFatal('Denne siden krever systemadministrator.'); return null; } return { session, profile }; }
-  async function signOut() { if (!supabaseClient) return; await supabaseClient.auth.signOut(); window.location.replace('index.html'); }
-  document.querySelectorAll('[data-logout]').forEach((link) => link.addEventListener('click', async (event) => { event.preventDefault(); await signOut(); }));
-  document.querySelectorAll('[data-coming-soon]').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); announce('page-status', 'Denne delen bygges i en senere fase.'); }));
-
-  async function initLogin() {
-    const form = document.getElementById('login-form'); if (!form) return;
-    if (!supabaseClient) { showFatal('Supabase-konfigurasjonen mangler. Kontroller config.js.'); return; }
-    try { const session = await getSession(); if (session) { window.location.replace('members.html'); return; } } catch (error) { announce('login-status', `Kunne ikke kontrollere innlogging: ${error.message}`, true); }
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault(); const button = form.querySelector('button[type="submit"]'); const email = document.getElementById('email').value.trim(); const password = document.getElementById('password').value;
-      announce('login-status', 'Logger inn…'); setBusy(button, true, 'Logger inn…', 'Logg inn');
-      try {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) throw error; if (!data.session) throw new Error('Innloggingen opprettet ingen aktiv sesjon.');
-        const profile = await getProfile(data.user.id); if (!profile || profile.active !== true) { await supabaseClient.auth.signOut(); throw new Error('Kontoen har ikke aktiv tilgang til medlemsportalen.'); }
-        const params = new URLSearchParams(window.location.search); const next = params.get('next'); const safeNext = next && /^(members|person|new-person|admins)\.html(?:\?.*)?$/.test(next) ? next : 'members.html'; window.location.replace(safeNext);
-      } catch (error) { announce('login-status', `Innlogging mislyktes: ${error.message}`, true); document.getElementById('password').focus(); }
-      finally { setBusy(button, false, 'Logger inn…', 'Logg inn'); }
-    });
+async function requireSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    location.href = "index.html";
+    return null;
   }
-
-  let allMembers = [];
-  function statusLabel(value) { if (value === 'active') return 'Aktiv'; if (value === 'resigned') return 'Utmeldt'; return 'Inaktiv'; }
-  function roleNames(member) { return (member.person_roles || []).filter((row) => row.is_active !== false).map((row) => row.roles && row.roles.name).filter(Boolean); }
-  function renderMembers() {
-    const body = document.getElementById('member-table-body'); if (!body) return;
-    const search = (document.getElementById('member-search')?.value || '').trim().toLowerCase(); const role = document.getElementById('role-filter')?.value || ''; const status = document.getElementById('status-filter')?.value || '';
-    const filtered = allMembers.filter((member) => { const roles = roleNames(member); const haystack = `${member.full_name || ''} ${member.email || ''} ${member.phone || ''} ${roles.join(' ')}`.toLowerCase(); return (!search || haystack.includes(search)) && (!role || roles.includes(role)) && (!status || member.membership_status === status); });
-    body.replaceChildren();
-    for (const member of filtered) {
-      const tr = document.createElement('tr'); const values = [member.full_name || '', member.email || 'Ikke registrert', member.phone || 'Ikke registrert', roleNames(member).join(', ') || 'Ingen aktiv rolle', statusLabel(member.membership_status)];
-      values.forEach((value) => { const td = document.createElement('td'); td.textContent = value; tr.appendChild(td); });
-      const action = document.createElement('td'); const link = document.createElement('a'); link.href = `person.html?id=${encodeURIComponent(member.id)}`; link.textContent = `Åpne ${member.full_name}`; action.appendChild(link); tr.appendChild(action); body.appendChild(tr);
-    }
-    announce('result-status', `${filtered.length} av ${allMembers.length} personer vises.`);
-  }
-  async function loadRoleOptions(selectId, includeBlank = false) { const select = document.getElementById(selectId); if (!select) return []; const { data, error } = await supabaseClient.from('roles').select('id, name').order('name'); if (error) throw error; select.replaceChildren(); if (includeBlank) { const o=document.createElement('option'); o.value=''; o.textContent='Velg rolle'; select.appendChild(o); } for (const role of data || []) { const option=document.createElement('option'); option.value=role.id; option.textContent=role.name; select.appendChild(option); } return data || []; }
-  async function initMembers() {
-    const body = document.getElementById('member-table-body'); if (!body) return; if (!supabaseClient) { showFatal('Supabase-konfigurasjonen mangler.'); return; }
-    try { const session=await requireSession(); if(!session)return; announce('result-status','Henter medlemslisten…');
-      const roleSelect=document.getElementById('role-filter'); const {data:roles,error:rolesError}=await supabaseClient.from('roles').select('name').order('name'); if(rolesError)throw rolesError; for(const r of roles||[]){const o=document.createElement('option');o.value=r.name;o.textContent=r.name;roleSelect.appendChild(o);}
-      const {data,error}=await supabaseClient.from('persons').select('id,full_name,email,phone,membership_status,person_roles(is_active,started_at,ended_at,roles(id,name))').order('full_name'); if(error)throw error; allMembers=data||[]; renderMembers();
-    } catch(error){announce('result-status',`Kunne ikke hente medlemslisten: ${error.message}`,true);showFatal('Medlemslisten kunne ikke lastes. Ingen data er endret.');}
-    ['member-search','role-filter','status-filter'].forEach(id=>document.getElementById(id)?.addEventListener(id==='member-search'?'input':'change',renderMembers));
-    document.getElementById('clear-filters')?.addEventListener('click',()=>{document.getElementById('member-search').value='';document.getElementById('role-filter').value='';document.getElementById('status-filter').value='';renderMembers();document.getElementById('member-search').focus();});
-  }
-
-  async function initNewPerson() {
-    const form=document.getElementById('new-person-form'); if(!form)return; try{const session=await requireSession();if(!session)return;await loadRoleOptions('new-role');}catch(error){showFatal(`Kunne ikke klargjøre skjemaet: ${error.message}`);return;}
-    form.addEventListener('submit',async(event)=>{event.preventDefault();const button=form.querySelector('button[type="submit"]');setBusy(button,true,'Oppretter…','Opprett person');announce('new-person-status','Oppretter person…');
-      const full_name=document.getElementById('new-full-name').value.trim();const email=document.getElementById('new-email').value.trim()||null;const phone=document.getElementById('new-phone').value.trim()||null;const membership_status=document.querySelector('input[name="new-status"]:checked')?.value||'active';const role_id=document.getElementById('new-role').value;
-      try{const {data:person,error}=await supabaseClient.from('persons').insert({full_name,email,phone,membership_status}).select('id').single();if(error)throw error;const {error:roleError}=await supabaseClient.from('person_roles').insert({person_id:person.id,role_id,is_active:true,started_at:new Date().toISOString().slice(0,10)});if(roleError){await supabaseClient.from('persons').delete().eq('id',person.id);throw roleError;}announce('new-person-status','Personen er opprettet. Åpner personen.');window.location.replace(`person.html?id=${encodeURIComponent(person.id)}`);}catch(error){announce('new-person-status',`Kunne ikke opprette personen: ${error.message}`,true);}finally{setBusy(button,false,'Oppretter…','Opprett person');}
-    });
-  }
-
-  let currentPerson=null; let allRoles=[];
-  function renderActiveRoles() {
-    const container=document.getElementById('active-roles'); if(!container||!currentPerson)return; container.replaceChildren(); const active=(currentPerson.person_roles||[]).filter(r=>r.is_active!==false);
-    if(!active.length){const p=document.createElement('p');p.textContent='Ingen aktive roller.';container.appendChild(p);return;}
-    const ul=document.createElement('ul');ul.className='role-list';
-    active.forEach(link=>{const li=document.createElement('li');li.className='role-item';const text=document.createElement('span');text.textContent=link.roles?.name||'Ukjent rolle';const btn=document.createElement('button');btn.type='button';btn.className='button-link';btn.textContent=`Deaktiver ${text.textContent}`;btn.addEventListener('click',()=>deactivateRole(link,btn));li.append(text,btn);ul.appendChild(li);});container.appendChild(ul);
-  }
-  function refreshAddRoleOptions(){const select=document.getElementById('add-role-select');if(!select)return;const activeIds=new Set((currentPerson?.person_roles||[]).filter(r=>r.is_active!==false).map(r=>r.role_id));select.replaceChildren();for(const role of allRoles){if(activeIds.has(role.id))continue;const o=document.createElement('option');o.value=role.id;o.textContent=role.name;select.appendChild(o);}if(!select.options.length){const o=document.createElement('option');o.value='';o.textContent='Alle roller er allerede aktive';select.appendChild(o);}}
-  async function deactivateRole(link,button){const name=link.roles?.name||'rollen';if(!window.confirm(`Vil du deaktivere ${name} for ${currentPerson.full_name}? Personen slettes ikke.`))return;setBusy(button,true,'Deaktiverer…',`Deaktiver ${name}`);try{const today=new Date().toISOString().slice(0,10);const{error}=await supabaseClient.from('person_roles').update({is_active:false,ended_at:today}).eq('person_id',currentPerson.id).eq('role_id',link.role_id);if(error)throw error;link.is_active=false;link.ended_at=today;renderActiveRoles();refreshAddRoleOptions();announce('role-status',`${name} er deaktivert.`);}catch(error){announce('role-status',`Kunne ikke deaktivere rollen: ${error.message}`,true);}finally{setBusy(button,false,'Deaktiverer…',`Deaktiver ${name}`);}}
-  async function initPerson(){const form=document.getElementById('person-form');if(!form)return;try{const session=await requireSession();if(!session)return;const id=new URLSearchParams(window.location.search).get('id');if(!id)throw new Error('Person-ID mangler i adressen.');announce('form-status','Henter person…');const [{data,error},{data:roles,error:rolesError}]=await Promise.all([supabaseClient.from('persons').select('id,full_name,email,phone,membership_status,person_roles(person_id,role_id,is_active,started_at,ended_at,roles(id,name))').eq('id',id).single(),supabaseClient.from('roles').select('id,name').order('name')]);if(error)throw error;if(rolesError)throw rolesError;currentPerson=data;allRoles=roles||[];document.getElementById('person-heading').textContent=`Rediger ${data.full_name}`;document.getElementById('full-name').value=data.full_name||'';document.getElementById('person-email').value=data.email||'';document.getElementById('person-phone').value=data.phone||'';document.querySelector(`input[name="status"][value="${data.membership_status}"]`)?.setAttribute('checked','checked');renderActiveRoles();refreshAddRoleOptions();announce('form-status','Personen er lastet.');}catch(error){announce('form-status',`Kunne ikke hente personen: ${error.message}`,true);showFatal('Personen kunne ikke lastes.');return;}
-    form.addEventListener('submit',async(event)=>{event.preventDefault();const btn=form.querySelector('button[type="submit"]');setBusy(btn,true,'Lagrer…','Lagre personopplysninger');try{const full_name=document.getElementById('full-name').value.trim();const email=document.getElementById('person-email').value.trim()||null;const phone=document.getElementById('person-phone').value.trim()||null;const membership_status=document.querySelector('input[name="status"]:checked')?.value||'active';const resigned_date=membership_status==='resigned'?(currentPerson.resigned_date||new Date().toISOString().slice(0,10)):null;const{error}=await supabaseClient.from('persons').update({full_name,email,phone,membership_status,resigned_date}).eq('id',currentPerson.id);if(error)throw error;currentPerson.full_name=full_name;currentPerson.membership_status=membership_status;document.getElementById('person-heading').textContent=`Rediger ${full_name}`;announce('form-status','Personopplysningene er lagret.');}catch(error){announce('form-status',`Kunne ikke lagre: ${error.message}`,true);}finally{setBusy(btn,false,'Lagrer…','Lagre personopplysninger');}});
-    document.getElementById('mark-resigned')?.addEventListener('click',async()=>{if(!window.confirm(`Vil du melde ut ${currentPerson.full_name}? Personen slettes ikke.`))return;const btn=document.getElementById('mark-resigned');setBusy(btn,true,'Melder ut…','Meld ut person');try{const today=new Date().toISOString().slice(0,10);const{error}=await supabaseClient.from('persons').update({membership_status:'resigned',resigned_date:today}).eq('id',currentPerson.id);if(error)throw error;document.querySelector('input[name="status"][value="resigned"]').checked=true;currentPerson.membership_status='resigned';announce('form-status','Personen er markert som utmeldt og er ikke slettet.');}catch(error){announce('form-status',`Kunne ikke melde ut personen: ${error.message}`,true);}finally{setBusy(btn,false,'Melder ut…','Meld ut person');}});
-    document.getElementById('add-role-form')?.addEventListener('submit',async(event)=>{event.preventDefault();const select=document.getElementById('add-role-select');const role_id=select.value;if(!role_id){announce('role-status','Ingen tilgjengelig rolle å legge til.');return;}const btn=event.currentTarget.querySelector('button');setBusy(btn,true,'Legger til…','Legg til rolle');try{const today=new Date().toISOString().slice(0,10);const existing=(currentPerson.person_roles||[]).find(r=>r.role_id===role_id);if(existing){const{error}=await supabaseClient.from('person_roles').update({is_active:true,started_at:existing.started_at||today,ended_at:null}).eq('person_id',currentPerson.id).eq('role_id',role_id);if(error)throw error;existing.is_active=true;existing.ended_at=null;}else{const role=allRoles.find(r=>r.id===role_id);const{data,error}=await supabaseClient.from('person_roles').insert({person_id:currentPerson.id,role_id,is_active:true,started_at:today}).select('person_id,role_id,is_active,started_at,ended_at').single();if(error)throw error;data.roles=role;currentPerson.person_roles.push(data);}renderActiveRoles();refreshAddRoleOptions();announce('role-status','Rollen er lagt til.');}catch(error){announce('role-status',`Kunne ikke legge til rollen: ${error.message}`,true);}finally{setBusy(btn,false,'Legger til…','Legg til rolle');}});
-  }
-
-  async function initAdmins(){const body=document.getElementById('admin-table-body');if(!body)return;try{const guard=await requireSystemAdmin();if(!guard)return;const{data,error}=await supabaseClient.from('app_users').select('user_id,display_name,app_role,active,created_at').order('display_name');if(error)throw error;body.replaceChildren();for(const user of data||[]){const tr=document.createElement('tr');[user.display_name||'Uten navn',user.app_role,user.active?'Ja':'Nei'].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.appendChild(td);});const action=document.createElement('td');if(user.user_id===guard.session.user.id){action.textContent='Din konto';}else{const btn=document.createElement('button');btn.type='button';btn.className='button-link';btn.textContent=user.active?'Deaktiver tilgang':'Aktiver tilgang';btn.addEventListener('click',async()=>{const next=!user.active;const{error:updateError}=await supabaseClient.from('app_users').update({active:next}).eq('user_id',user.user_id);if(updateError){announce('admin-status',`Kunne ikke endre tilgang: ${updateError.message}`,true);return;}user.active=next;btn.textContent=next?'Deaktiver tilgang':'Aktiver tilgang';tr.children[2].textContent=next?'Ja':'Nei';announce('admin-status','Tilgangen er oppdatert.');});action.appendChild(btn);}tr.appendChild(action);body.appendChild(tr);}announce('admin-status',`${(data||[]).length} portalbrukere vises.`);}catch(error){showFatal(`Kunne ikke hente portalbrukere: ${error.message}`);}
-    document.getElementById('invite-admin-form')?.addEventListener('submit',async(event)=>{event.preventDefault();const btn=event.currentTarget.querySelector('button');setBusy(btn,true,'Sender…','Send invitasjon');announce('invite-status','Sender invitasjon…');try{const email=document.getElementById('invite-email').value.trim();const display_name=document.getElementById('invite-name').value.trim();const app_role=document.getElementById('invite-role').value;const{data,error}=await supabaseClient.functions.invoke('invite-portal-user',{body:{email,display_name,app_role}});if(error)throw error;if(data?.error)throw new Error(data.error);announce('invite-status','Invitasjonen er sendt. Last siden på nytt når brukeren har akseptert.');event.currentTarget.reset();}catch(error){announce('invite-status',`Invitasjonen kunne ikke sendes. Serverfunksjonen må være deployet først. ${error.message}`,true);}finally{setBusy(btn,false,'Sender…','Send invitasjon');}});
-  }
-
-  initLogin();initMembers();initNewPerson();initPerson();initAdmins();
-})();
+  return session;
+}
+async function logout() {
+  await sb.auth.signOut();
+  location.href = "index.html";
+}
+function announce(msg) {
+  const el = document.getElementById("status");
+  if (el) el.textContent = msg;
+}
+async function getCurrentAppUser() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await sb.from("app_users")
+    .select("user_id,display_name,app_role,active")
+    .eq("user_id", user.id).single();
+  if (error) throw error;
+  return data;
+}
+function downloadBlob(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function csvCell(v) {
+  if (v == null) return "";
+  const s = String(v).replace(/"/g,'""');
+  return '"' + s + '"';
+}

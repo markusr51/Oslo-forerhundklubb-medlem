@@ -1,34 +1,30 @@
 <!doctype html>
 <html lang="no">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Legg til person – Oslo Førerhundklubb</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Legg til person</title><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script>
 </head>
 <body>
-<a class="skip-link" href="#innhold">Hopp til hovedinnhold</a>
-<header class="site-header"><div class="container header-inner">
-<a href="members.html" aria-label="Til medlemslisten"><img src="logo.png" alt="Oslo Førerhundklubb" class="logo"></a>
-<nav aria-label="Medlemsportal" class="main-nav"><a href="members.html">Medlemmer</a><a aria-current="page" href="new-person.html">Legg til person</a><a href="admins.html">Brukere og tilganger</a><a href="index.html" data-logout>Logg ut</a></nav>
-</div></header>
-<main id="innhold" class="container narrow" tabindex="-1">
-<div id="fatal-status" class="fatal" role="alert" tabindex="-1" hidden></div>
-<p><a href="members.html">← Tilbake til medlemslisten</a></p>
-<h1>Legg til ny person</h1>
-<form id="new-person-form" class="panel">
-<div class="field"><label for="new-full-name">Navn</label><input id="new-full-name" required autocomplete="name"></div>
-<div class="field"><label for="new-email">E-post</label><input id="new-email" type="email" autocomplete="email"></div>
-<div class="field"><label for="new-phone">Telefon</label><input id="new-phone" inputmode="tel" autocomplete="tel"></div>
-<div class="field"><label for="new-role">Første rolle</label><select id="new-role" required></select></div>
-<fieldset><legend>Medlemsstatus</legend>
-<label><input type="radio" name="new-status" value="active" checked> Aktiv</label>
-<label><input type="radio" name="new-status" value="inactive"> Inaktiv</label>
-<label><input type="radio" name="new-status" value="resigned"> Utmeldt</label>
-</fieldset>
-<div class="actions"><button class="button" type="submit">Opprett person</button><a class="button-secondary" href="members.html">Avbryt</a></div>
-<p id="new-person-status" class="status" role="status" aria-live="polite"></p>
+<header><h1>Legg til person</h1></header>
+<nav aria-label="Hovedmeny"><a href="members.html">Medlemmer</a><a href="admins.html">Brukere og tilganger</a><a href="history.html">Endringshistorikk</a><button onclick="logout()">Logg ut</button></nav>
+<main>
+<p id="status" class="status" role="status" aria-live="polite"></p>
+<form id="f">
+<p><label for="name">Navn</label><br><input id="name" required></p>
+<p><label for="email">E-post</label><br><input id="email" type="email"></p>
+<p><label for="phone">Telefon</label><br><input id="phone"></p>
+<button type="submit">Opprett person</button>
 </form>
 </main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script>
+<script>
+(async()=>{await requireSession()})();
+f.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const {error}=await sb.from('persons').insert({full_name:name.value.trim(),email:email.value.trim()||null,phone:phone.value.trim()||null,membership_status:'active'});
+  if(error){announce('Kunne ikke opprette: '+error.message);return;}
+  announce('Person opprettet.');
+  f.reset();
+});
+</script>
 </body></html>

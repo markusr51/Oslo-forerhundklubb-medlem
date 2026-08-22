@@ -1,11 +1,107 @@
 <!doctype html>
-<html lang="no"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Brukere og tilganger – Oslo Førerhundklubb</title><link rel="stylesheet" href="style.css"></head>
-<body><a class="skip-link" href="#innhold">Hopp til hovedinnhold</a>
-<header class="site-header"><div class="container header-inner"><a href="members.html" aria-label="Til medlemslisten"><img src="logo.png" alt="Oslo Førerhundklubb" class="logo"></a><nav aria-label="Medlemsportal" class="main-nav"><a href="members.html">Medlemmer</a><a href="new-person.html">Legg til person</a><a aria-current="page" href="admins.html">Brukere og tilganger</a><a href="index.html" data-logout>Logg ut</a></nav></div></header>
-<main id="innhold" class="container" tabindex="-1"><div id="fatal-status" class="fatal" role="alert" tabindex="-1" hidden></div>
-<h1>Brukere og tilganger</h1><p class="lead">Administrer hvem som kan logge inn i medlemsportalen.</p>
-<p id="admin-status" class="status" role="status" aria-live="polite"></p>
-<section aria-labelledby="users-heading"><h2 id="users-heading">Portalbrukere</h2><div class="table-wrap"><table><caption class="sr-only">Brukere med tilgang til medlemsportalen</caption><thead><tr><th scope="col">Navn</th><th scope="col">Rolle</th><th scope="col">Aktiv</th><th scope="col">Handling</th></tr></thead><tbody id="admin-table-body"></tbody></table></div></section>
-<section class="panel" aria-labelledby="invite-heading"><h2 id="invite-heading">Inviter ny bruker</h2><p>Invitasjon krever en liten sikker serverfunksjon. Denne siden er klargjort for den, men funksjonen må deployes før første invitasjon.</p>
-<form id="invite-admin-form"><div class="field"><label for="invite-email">E-post</label><input id="invite-email" type="email" required></div><div class="field"><label for="invite-name">Navn</label><input id="invite-name" required></div><div class="field"><label for="invite-role">Tilgang</label><select id="invite-role"><option value="admin">Administrator</option><option value="readonly">Kun lesetilgang</option><option value="system_admin">Systemadministrator</option></select></div><button class="button" type="submit">Send invitasjon</button></form><p id="invite-status" class="status" role="status" aria-live="polite"></p></section>
-</main><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script></body></html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Brukere og tilganger – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header><img src="logo.png" alt="Oslo Førerhundklubb"><h1>Brukere og tilganger</h1></header>
+<nav aria-label="Hovedmeny">
+<a href="members.html">Medlemmer</a>
+<a href="new-person.html">Legg til person</a>
+<a href="admins.html">Brukere og tilganger</a>
+<a href="history.html">Endringshistorikk</a>
+<button onclick="logout()">Logg ut</button>
+</nav>
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster …</p>
+<section>
+<h2>Inviter portalbruker</h2>
+<form id="inviteForm">
+<p><label for="displayName">Navn</label><br><input id="displayName" required></p>
+<p><label for="email">E-post</label><br><input id="email" type="email" required></p>
+<p><label for="role">Tilgangsrolle</label><br>
+<select id="role">
+<option value="readonly">Kun lesetilgang</option>
+<option value="admin">Administrator</option>
+<option value="system_admin">Systemadministrator</option>
+</select></p>
+<button type="submit">Send invitasjon</button>
+</form>
+</section>
+<section>
+<h2>Portalbrukere</h2>
+<table>
+<caption>Brukere med portaltilgang</caption>
+<thead><tr><th>Navn</th><th>Rolle</th><th>Aktiv</th><th>Handlinger</th></tr></thead>
+<tbody id="userRows"></tbody>
+</table>
+</section>
+</main>
+<script>
+let current=null;
+(async()=>{
+  await requireSession();
+  current=await getCurrentAppUser();
+  if(!current||current.app_role!=='system_admin'){
+    announce('Bare systemadministrator har tilgang.');
+    inviteForm.hidden=true;
+    return;
+  }
+  await loadUsers();
+})();
+async function loadUsers(){
+  const {data,error}=await sb.from('app_users').select('user_id,display_name,app_role,active,created_at').order('created_at');
+  if(error){announce('Kunne ikke hente portalbrukere: '+error.message);return;}
+  userRows.innerHTML='';
+  for(const u of data){
+    const tr=document.createElement('tr');
+    const actions=[];
+    if(u.active) actions.push(`<button data-action="deactivate" data-id="${u.user_id}">Deaktiver</button>`);
+    else actions.push(`<button data-action="reactivate" data-id="${u.user_id}">Reaktiver</button>`);
+    actions.push(`<button data-action="role" data-id="${u.user_id}">Endre rolle</button>`);
+    if(u.user_id!==current.user_id) actions.push(`<button data-action="delete" data-id="${u.user_id}">Slett bruker</button>`);
+    tr.innerHTML=`<td>${u.display_name||''}</td><td>${u.app_role}</td><td>${u.active?'Ja':'Nei'}</td><td>${actions.join(' ')}</td>`;
+    userRows.appendChild(tr);
+  }
+  userRows.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>handle(b.dataset.action,b.dataset.id)));
+  announce(data.length+' portalbrukere lastet.');
+}
+inviteForm.addEventListener('submit',async e=>{
+  e.preventDefault();
+  announce('Sender invitasjon …');
+  const {data,error}=await sb.functions.invoke('invite-portal-user',{
+    body:{
+      email:email.value.trim(),
+      displayName:displayName.value.trim(),
+      appRole:role.value,
+      redirectTo:'https://medlem.osloforerhundklubb.no'
+    }
+  });
+  if(error){announce('Invitasjon feilet: '+error.message);return;}
+  announce(data?.message||'Invitasjon sendt.');
+  inviteForm.reset();
+  await loadUsers();
+});
+async function handle(action,id){
+  let body={userId:id,action};
+  if(action==='role'){
+    const r=prompt('Ny rolle: system_admin, admin eller readonly');
+    if(!r)return;
+    body={userId:id,action:'change_role',appRole:r.trim()};
+  }
+  if(action==='delete' && !confirm('Slette portalbrukeren permanent?')) return;
+  if(action==='deactivate' && !confirm('Deaktivere portalbrukeren?')) return;
+  const {data,error}=await sb.functions.invoke('manage-portal-user',{body});
+  if(error){announce('Handlingen feilet: '+error.message);return;}
+  announce(data?.message||'Utført.');
+  await loadUsers();
+}
+</script>
+</body>
+</html>

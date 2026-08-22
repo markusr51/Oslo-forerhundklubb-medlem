@@ -1,34 +1,50 @@
 <!doctype html>
 <html lang="no">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Person – Oslo Førerhundklubb</title><link rel="stylesheet" href="style.css"></head>
-<body>
-<a class="skip-link" href="#innhold">Hopp til hovedinnhold</a>
-<header class="site-header"><div class="container header-inner">
-<a href="members.html" aria-label="Til medlemslisten"><img src="logo.png" alt="Oslo Førerhundklubb" class="logo"></a>
-<nav aria-label="Medlemsportal" class="main-nav"><a href="members.html">Medlemmer</a><a href="new-person.html">Legg til person</a><a href="admins.html">Brukere og tilganger</a><a href="index.html" data-logout>Logg ut</a></nav>
-</div></header>
-<main id="innhold" class="container narrow" tabindex="-1">
-<div id="fatal-status" class="fatal" role="alert" tabindex="-1" hidden></div>
-<p><a href="members.html">← Tilbake til medlemslisten</a></p>
-<h1 id="person-heading">Rediger person</h1>
-<form id="person-form" class="panel">
-<div class="field"><label for="full-name">Navn</label><input id="full-name" name="full_name" required></div>
-<div class="field"><label for="person-email">E-post</label><input id="person-email" name="email" type="email"></div>
-<div class="field"><label for="person-phone">Telefon</label><input id="person-phone" name="phone" inputmode="tel"></div>
-<fieldset><legend>Medlemsstatus</legend><label><input type="radio" name="status" value="active"> Aktiv</label><label><input type="radio" name="status" value="inactive"> Inaktiv</label><label><input type="radio" name="status" value="resigned"> Utmeldt</label></fieldset>
-<div class="actions"><button class="button" type="submit">Lagre personopplysninger</button><button class="button-danger" id="mark-resigned" type="button">Meld ut person</button></div>
-<p id="form-status" class="status" role="status" aria-live="polite"></p>
-</form>
-
-<section class="panel" aria-labelledby="roles-heading">
-<h2 id="roles-heading">Roller</h2>
-<div id="active-roles" aria-live="polite"></div>
-<form id="add-role-form">
-<div class="field"><label for="add-role-select">Legg til rolle</label><select id="add-role-select"></select></div>
-<button class="button" type="submit">Legg til rolle</button>
-</form>
-<p id="role-status" class="status" role="status" aria-live="polite"></p>
-</section>
-</main>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Person</title><link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script>
-</body></html>
+</head>
+<body>
+<header><h1>Person</h1></header>
+<nav aria-label="Hovedmeny"><a href="members.html">Til medlemslisten</a><button onclick="logout()">Logg ut</button></nav>
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster …</p>
+<form id="f">
+<p><label for="name">Navn</label><br><input id="name"></p>
+<p><label for="email">E-post</label><br><input id="email" type="email"></p>
+<p><label for="phone">Telefon</label><br><input id="phone"></p>
+<p><label for="membership">Status</label><br>
+<select id="membership"><option value="active">Aktiv</option><option value="inactive">Inaktiv</option><option value="resigned">Utmeldt</option></select></p>
+<button type="submit">Lagre</button>
+</form>
+<section class="danger"><h2>Permanent sletting</h2><button id="del">Slett person permanent</button></section>
+</main>
+<script>
+let id=new URLSearchParams(location.search).get('id');
+(async()=>{
+  await requireSession();
+  const {data,error}=await sb.from('persons').select('*').eq('id',id).single();
+  if(error){announce(error.message);return;}
+  name.value=data.full_name||'';
+  email.value=data.email||'';
+  phone.value=data.phone||'';
+  membership.value=data.membership_status;
+  announce('Person lastet.');
+})();
+f.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const {error}=await sb.from('persons').update({full_name:name.value.trim(),email:email.value.trim()||null,phone:phone.value.trim()||null,membership_status:membership.value}).eq('id',id);
+  announce(error?'Lagring feilet: '+error.message:'Lagret.');
+});
+del.addEventListener('click',async()=>{
+  const me=await getCurrentAppUser();
+  if(me?.app_role!=='system_admin'){announce('Bare systemadministrator kan slette permanent.');return;}
+  if(!confirm('Slette personen permanent?'))return;
+  const {error}=await sb.from('persons').delete().eq('id',id);
+  if(error){announce('Sletting feilet: '+error.message);return;}
+  location.href='members.html';
+});
+</script>
+</body>
+</html>

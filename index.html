@@ -1,41 +1,33 @@
 <!doctype html>
 <html lang="no">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Logg inn – Oslo Førerhundklubb medlemsportal</title>
-  <meta name="description" content="Administrativ medlemsportal for Oslo Førerhundklubb">
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-<a class="skip-link" href="#innhold">Hopp til hovedinnhold</a>
-<header class="site-header">
-  <div class="container header-inner">
-    <img src="logo.png" alt="Oslo Førerhundklubb" class="logo">
-    <p class="portal-label">Medlemsportal</p>
-  </div>
-</header>
-<main id="innhold" class="container narrow" tabindex="-1">
-  <div id="fatal-status" class="fatal" role="alert" tabindex="-1" hidden></div>
-  <section class="panel" aria-labelledby="login-heading">
-    <h1 id="login-heading">Logg inn</h1>
-    <p>Logg inn med administratorkontoen din for å åpne medlemsregisteret.</p>
-    <form id="login-form">
-      <div class="field">
-        <label for="email">E-post</label>
-        <input id="email" name="email" type="email" autocomplete="username" required>
-      </div>
-      <div class="field">
-        <label for="password">Passord</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required>
-      </div>
-      <button type="submit" class="button">Logg inn</button>
-    </form>
-    <p id="login-status" class="status" role="status" aria-live="polite"></p>
-  </section>
-</main>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Logg inn – Oslo Førerhundklubb medlemsportal</title>
+<link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+</head>
+<body>
+<header><img src="logo.png" alt="Oslo Førerhundklubb"><h1>Medlemsportal</h1></header>
+<main>
+<h2>Logg inn</h2>
+<p id="status" class="status" role="status" aria-live="polite">Bruk din portalbruker.</p>
+<form id="loginForm">
+<p><label for="email">E-post</label><br><input id="email" type="email" autocomplete="username" required></p>
+<p><label for="password">Passord</label><br><input id="password" type="password" autocomplete="current-password" required></p>
+<button type="submit">Logg inn</button>
+</form>
+</main>
+<script>
+document.getElementById('loginForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  announce('Logger inn …');
+  const {error}=await sb.auth.signInWithPassword({email:email.value.trim(),password:password.value});
+  if(error){announce('Innlogging feilet: '+error.message); return;}
+  location.href='members.html';
+});
+</script>
 </body>
 </html>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Endringshistorikk – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header><img src="logo.png" alt="Oslo Førerhundklubb"><h1>Endringshistorikk</h1></header>
+<nav aria-label="Hovedmeny">
+<a href="members.html">Medlemmer</a>
+<a href="new-person.html">Legg til person</a>
+<a href="admins.html">Brukere og tilganger</a>
+<a href="history.html">Endringshistorikk</a>
+<button onclick="logout()">Logg ut</button>
+</nav>
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster historikk …</p>
+<table>
+<caption>Registrerte endringer</caption>
+<thead><tr><th>Tid</th><th>Tabell</th><th>Handling</th><th>Detaljer</th></tr></thead>
+<tbody id="hist"></tbody>
+</table>
+</main>
+<script>
+(async()=>{
+  await requireSession();
+  const me=await getCurrentAppUser();
+  if(!me||me.app_role!=='system_admin'){announce('Bare systemadministrator kan se endringshistorikken.');return;}
+  const {data,error}=await sb.from('audit_log').select('changed_at,table_name,action,old_data,new_data').order('changed_at',{ascending:false}).limit(200);
+  if(error){announce('Kunne ikke hente historikk: '+error.message);return;}
+  for(const x of data){
+    const tr=document.createElement('tr');
+    const detail=x.new_data||x.old_data||{};
+    tr.innerHTML=`<td>${new Date(x.changed_at).toLocaleString('nb-NO')}</td><td>${x.table_name}</td><td>${x.action}</td><td><pre>${JSON.stringify(detail,null,2)}</pre></td>`;
+    hist.appendChild(tr);
+  }
+  announce(data.length+' hendelser lastet.');
+})();
+</script>
+</body>
+</html>

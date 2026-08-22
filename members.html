@@ -1,83 +1,66 @@
 <!doctype html>
 <html lang="no">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Medlemmer – Oslo Førerhundklubb</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-<a class="skip-link" href="#innhold">Hopp til hovedinnhold</a>
-<header class="site-header">
-  <div class="container header-inner">
-    <a href="members.html" aria-label="Til medlemsportalens forside"><img src="logo.png" alt="Oslo Førerhundklubb" class="logo"></a>
-    <nav aria-label="Medlemsportal" class="main-nav">
-      <a aria-current="page" href="members.html">Medlemmer</a>
-      <a href="new-person.html">Legg til person</a>
-      <a href="admins.html">Brukere og tilganger</a>
-      <a href="#" data-coming-soon>Grupper</a>
-      <a href="#" data-coming-soon>Arrangementer</a>
-      <a href="#" data-coming-soon>Kommunikasjon</a>
-      <a href="index.html" data-logout>Logg ut</a>
-    </nav>
-  </div>
-</header>
-<main id="innhold" class="container" tabindex="-1">
-  <div id="fatal-status" class="fatal" role="alert" tabindex="-1" hidden></div>
-  <h1>Medlemmer</h1>
-  <p class="lead">Medlemsregister for Oslo Førerhundklubb.</p>
-  <p id="page-status" class="status" role="status" aria-live="polite"></p>
-
-  <p><a class="button" href="new-person.html">Legg til ny person</a></p>
-
-  <section class="toolbar" aria-labelledby="search-heading">
-    <h2 id="search-heading">Søk og filtrer</h2>
-    <div class="field">
-      <label for="member-search">Søk etter navn, e-post, telefon eller rolle</label>
-      <input id="member-search" type="search" autocomplete="off">
-    </div>
-    <div class="field">
-      <label for="role-filter">Rolle</label>
-      <select id="role-filter">
-        <option value="">Alle roller</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="status-filter">Status</label>
-      <select id="status-filter">
-        <option value="">Alle statuser</option>
-        <option value="active">Aktiv</option>
-        <option value="inactive">Inaktiv</option>
-        <option value="resigned">Utmeldt</option>
-      </select>
-    </div>
-    <button class="button-secondary" id="clear-filters" type="button">Nullstill søk</button>
-  </section>
-
-  <p id="result-status" class="status" role="status" aria-live="polite"></p>
-
-  <section aria-labelledby="list-heading">
-    <h2 id="list-heading">Medlemsliste</h2>
-    <div class="table-wrap">
-      <table>
-        <caption class="sr-only">Medlemmer med kontaktinformasjon, rolle og status</caption>
-        <thead>
-          <tr>
-            <th scope="col">Navn</th>
-            <th scope="col">E-post</th>
-            <th scope="col">Telefon</th>
-            <th scope="col">Rolle</th>
-            <th scope="col">Status</th>
-            <th scope="col">Handling</th>
-          </tr>
-        </thead>
-        <tbody id="member-table-body"></tbody>
-      </table>
-    </div>
-  </section>
-</main>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Medlemmer – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+</head>
+<body>
+<header><img src="logo.png" alt="Oslo Førerhundklubb"><h1>Medlemmer</h1></header>
+<nav aria-label="Hovedmeny">
+<a href="members.html">Medlemmer</a>
+<a href="new-person.html">Legg til person</a>
+<a href="admins.html">Brukere og tilganger</a>
+<a href="history.html">Endringshistorikk</a>
+<button onclick="logout()">Logg ut</button>
+</nav>
+<main>
+<div class="actions"><button id="exportBtn">Eksporter medlemsliste til CSV</button></div>
+<p id="status" class="status" role="status" aria-live="polite">Laster medlemsregister …</p>
+<p><label for="search">Søk</label><br><input id="search" type="search"></p>
+<table>
+<caption>Medlemsregister</caption>
+<thead><tr><th>Navn</th><th>E-post</th><th>Telefon</th><th>Status</th><th>Handling</th></tr></thead>
+<tbody id="rows"></tbody>
+</table>
+</main>
+<script>
+let members=[];
+(async()=>{
+  await requireSession();
+  const {data,error}=await sb.from('persons').select('id,full_name,email,phone,membership_status').order('full_name');
+  if(error){announce('Kunne ikke hente medlemmer: '+error.message);return;}
+  members=data||[];
+  render(members);
+  announce(members.length+' personer lastet.');
+})();
+function render(list){
+  rows.innerHTML='';
+  list.forEach(p=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${p.full_name||''}</td><td>${p.email||''}</td><td>${p.phone||''}</td><td>${p.membership_status||''}</td><td><a href="person.html?id=${encodeURIComponent(p.id)}">Åpne</a></td>`;
+    rows.appendChild(tr);
+  });
+}
+search.addEventListener('input',()=>{
+  const q=search.value.toLowerCase();
+  render(members.filter(p=>[p.full_name,p.email,p.phone].some(v=>(v||'').toLowerCase().includes(q))));
+});
+exportBtn.addEventListener('click',async()=>{
+  const {data,error}=await sb.from('persons').select('full_name,email,phone,membership_status,person_roles(is_active,roles(name))').order('full_name');
+  if(error){announce('Eksport feilet: '+error.message);return;}
+  let csv='Navn,E-post,Telefon,Status,Roller\n';
+  for(const p of data){
+    const roles=(p.person_roles||[]).filter(r=>r.is_active).map(r=>r.roles?.name).filter(Boolean).join('; ');
+    csv += [p.full_name,p.email,p.phone,p.membership_status,roles].map(csvCell).join(',')+'\n';
+  }
+  downloadBlob('oslo-forerhundklubb-medlemsliste.csv',csv,'text/csv;charset=utf-8');
+  announce('Medlemslisten er eksportert.');
+});
+</script>
 </body>
 </html>
