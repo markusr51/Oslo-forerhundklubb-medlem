@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Medlemsportal – Oslo Førerhundklubb</title>
+  <meta name="description" content="Administrativ medlemsportal for Oslo Førerhundklubb">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip-link" href="#innhold">Hopp til hovedinnhold</a>
+<header class="site-header">
+  <div class="container header-inner">
+    <img src="logo.png" alt="Oslo Førerhundklubb" class="logo">
+    <p class="portal-label">Medlemsportal</p>
+  </div>
+</header>
+<main id="innhold" class="container narrow" tabindex="-1">
+  <section class="panel" aria-labelledby="login-heading">
+    <h1 id="login-heading">Logg inn</h1>
+    <p>Denne første testversjonen bruker ikke ekte medlemsdata. Supabase-innlogging kobles på i neste fase.</p>
+    <form id="login-form">
+      <div class="field">
+        <label for="email">E-post</label>
+        <input id="email" name="email" type="email" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">Passord</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="button">Logg inn i testmodus</button>
+    </form>
+    <p id="login-status" class="status" role="status" aria-live="polite"></p>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Medlemmer – Oslo Førerhundklubb</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip-link" href="#innhold">Hopp til hovedinnhold</a>
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="members.html" aria-label="Til medlemsportalens forside"><img src="logo.png" alt="Oslo Førerhundklubb" class="logo"></a>
+    <nav aria-label="Medlemsportal" class="main-nav">
+      <a aria-current="page" href="members.html">Medlemmer</a>
+      <a href="#" data-coming-soon>Grupper</a>
+      <a href="#" data-coming-soon>Arrangementer</a>
+      <a href="#" data-coming-soon>Kommunikasjon</a>
+      <a href="index.html">Logg ut</a>
+    </nav>
+  </div>
+</header>
+<main id="innhold" class="container" tabindex="-1">
+  <h1>Medlemmer</h1>
+  <p class="lead">Testgrensesnitt. Ingen ekte medlemsdata vises i denne versjonen.</p>
+
+  <section class="toolbar" aria-labelledby="search-heading">
+    <h2 id="search-heading">Søk og filtrer</h2>
+    <div class="field">
+      <label for="member-search">Søk etter navn, e-post eller telefon</label>
+      <input id="member-search" type="search" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="role-filter">Rolle</label>
+      <select id="role-filter">
+        <option value="">Alle roller</option>
+        <option>Ekvipasje</option>
+        <option>Hjelpetrener</option>
+        <option>Dyrepleier</option>
+        <option>Medlem</option>
+      </select>
+    </div>
+    <button class="button-secondary" id="clear-filters" type="button">Nullstill søk</button>
+  </section>
+
+  <p id="result-status" class="status" role="status" aria-live="polite"></p>
+
+  <section aria-labelledby="list-heading">
+    <h2 id="list-heading">Medlemsliste</h2>
+    <div class="table-wrap">
+      <table>
+        <caption class="sr-only">Testmedlemmer med kontaktinformasjon, rolle og status</caption>
+        <thead>
+          <tr>
+            <th scope="col">Navn</th>
+            <th scope="col">E-post</th>
+            <th scope="col">Telefon</th>
+            <th scope="col">Rolle</th>
+            <th scope="col">Status</th>
+            <th scope="col">Handling</th>
+          </tr>
+        </thead>
+        <tbody id="member-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

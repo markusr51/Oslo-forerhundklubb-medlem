@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Person – Oslo Førerhundklubb</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip-link" href="#innhold">Hopp til hovedinnhold</a>
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="members.html" aria-label="Til medlemslisten"><img src="logo.png" alt="Oslo Førerhundklubb" class="logo"></a>
+    <nav aria-label="Medlemsportal" class="main-nav">
+      <a href="members.html">Medlemmer</a>
+      <a href="index.html">Logg ut</a>
+    </nav>
+  </div>
+</header>
+<main id="innhold" class="container narrow" tabindex="-1">
+  <p><a href="members.html">← Tilbake til medlemslisten</a></p>
+  <h1 id="person-heading">Rediger person</h1>
+  <form id="person-form" class="panel">
+    <div class="field">
+      <label for="full-name">Navn</label>
+      <input id="full-name" name="full_name" required>
+    </div>
+    <div class="field">
+      <label for="person-email">E-post</label>
+      <input id="person-email" name="email" type="email">
+    </div>
+    <div class="field">
+      <label for="person-phone">Telefon</label>
+      <input id="person-phone" name="phone" inputmode="tel">
+    </div>
+    <div class="field">
+      <label for="person-role">Rolle</label>
+      <select id="person-role" name="role">
+        <option>Ekvipasje</option>
+        <option>Hjelpetrener</option>
+        <option>Dyrepleier</option>
+        <option>Medlem</option>
+      </select>
+    </div>
+    <fieldset>
+      <legend>Status</legend>
+      <label><input type="radio" name="status" value="active" checked> Aktiv</label>
+      <label><input type="radio" name="status" value="inactive"> Inaktiv</label>
+    </fieldset>
+    <div class="actions">
+      <button class="button" type="submit">Lagre endringer</button>
+      <button class="button-danger" id="deactivate-role" type="button">Deaktiver rolle</button>
+    </div>
+    <p id="form-status" class="status" role="status" aria-live="polite"></p>
+  </form>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
