@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SMS – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header>
+  <img src="logo.png" alt="Oslo Førerhundklubb">
+  <h1>SMS</h1>
+</header>
+
+<nav aria-label="Hovedmeny">
+  <a href="members.html">Medlemmer</a>
+  <a href="new-person.html">Legg til person</a>
+  <a href="sms.html" aria-current="page">SMS</a>
+  <a href="admins.html">Brukere og tilganger</a>
+  <a href="history.html">Endringshistorikk</a>
+  <button type="button" onclick="logout()">Logg ut</button>
+</nav>
+
+<main>
+  <p id="status" class="status" role="status" aria-live="polite">
+    Kontrollerer tilgang …
+  </p>
+
+  <section aria-labelledby="send-heading">
+    <h2 id="send-heading">Send test-SMS</h2>
+    <p>
+      Denne første SMS-versjonen sender til ett manuelt angitt nummer.
+      Gruppeutsending fra medlemsregisteret kobler vi på etter at Sveve-integrasjonen er bekreftet.
+    </p>
+
+    <form id="smsForm">
+      <fieldset>
+        <legend>SMS-type</legend>
+        <p>
+          <label>
+            <input type="radio" name="smsType" value="text" checked>
+            Ikke-svarbar SMS fra «Oslo FHK»
+          </label>
+        </p>
+        <p>
+          <label>
+            <input type="radio" name="smsType" value="reply">
+            Svarbar SMS via Sveves svarnummer
+          </label>
+        </p>
+      </fieldset>
+
+      <p>
+        <label for="phone">Mottakers mobilnummer</label><br>
+        <input
+          id="phone"
+          type="tel"
+          inputmode="tel"
+          autocomplete="tel"
+          placeholder="For eksempel 41234567"
+          required>
+      </p>
+
+      <p>
+        <label for="message">Melding</label><br>
+        <textarea
+          id="message"
+          rows="8"
+          maxlength="1071"
+          required
+          aria-describedby="charCount"></textarea>
+      </p>
+
+      <p id="charCount" aria-live="polite">0 av 1071 tegn.</p>
+
+      <div class="actions">
+        <button type="button" id="validateBtn">
+          Test mot Sveve uten å sende
+        </button>
+        <button type="button" id="sendBtn">
+          Send én ekte test-SMS
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section aria-labelledby="result-heading">
+    <h2 id="result-heading">Resultat</h2>
+    <p id="resultText">Ingen test er kjørt ennå.</p>
+    <details id="technicalDetails">
+      <summary>Tekniske detaljer</summary>
+      <pre id="resultJson"></pre>
+    </details>
+  </section>
+</main>
+
+<script>
+let currentAppUser = null;
+
+function selectedReplyMode() {
+  return document.querySelector('input[name="smsType"]:checked')?.value === "reply";
+}
+
+function setBusy(isBusy) {
+  document.getElementById("validateBtn").disabled = isBusy;
+  document.getElementById("sendBtn").disabled = isBusy;
+}
+
+function describeSveveResult(data, isTest) {
+  if (!data) return "Ingen data mottatt fra serveren.";
+
+  const sveve = data.sveve || {};
+  const ok =
+    sveve.msgOkCount ??
+    sveve.MsgOkCount ??
+    sveve.okCount ??
+    null;
+  const units =
+    sveve.stdSMSCount ??
+    sveve.StdSMSCount ??
+    sveve.smsCount ??
+    null;
+
+  let text = isTest
+    ? "Testen ble godkjent av serveren uten at SMS ble sendt."
+    : "SMS-kallet ble godkjent av serveren.";
+
+  if (typeof data.recipients === "number") {
+    text += ` Gyldige mottakere: ${data.recipients}.`;
+  }
+  if (ok !== null) {
+    text += ` Sveve godkjente ${ok} melding(er).`;
+  }
+  if (units !== null) {
+    text += ` Beregnet SMS-forbruk: ${units} SMS-enhet(er).`;
+  }
+  if (Array.isArray(data.rejected) && data.rejected.length) {
+    text += ` Avviste nummer: ${data.rejected.join(", ")}.`;
+  }
+
+  return text;
+}
+
+async function callSendSms(testMode) {
+  const phone = document.getElementById("phone").value.trim();
+  const message = document.getElementById("message").value.trim();
+
+  if (!phone) {
+    announce("Skriv inn et mobilnummer.");
+    document.getElementById("phone").focus();
+    return;
+  }
+  if (!message) {
+    announce("Skriv inn en melding.");
+    document.getElementById("message").focus();
+    return;
+  }
+
+  if (!testMode) {
+    const typeText = selectedReplyMode()
+      ? "svarbar SMS"
+      : "ikke-svarbar SMS fra Oslo FHK";
+    if (!confirm(`Vil du sende én ekte ${typeText} til ${phone}?`)) {
+      announce("Sending avbrutt.");
+      return;
+    }
+  }
+
+  setBusy(true);
+  announce(testMode
+    ? "Tester Sveve-integrasjonen uten å sende SMS …"
+    : "Sender én test-SMS …");
+  document.getElementById("resultText").textContent = "Venter på svar …";
+  document.getElementById("resultJson").textContent = "";
+
+  try {
+    const { data, error } = await sb.functions.invoke("send-sms", {
+      body: {
+        recipients: [phone],
+        message,
+        reply: selectedReplyMode(),
+        test: testMode
+      }
+    });
+
+    if (error) {
+      console.error(error);
+      const msg = "SMS-kallet feilet: " + (error.message || "ukjent feil");
+      announce(msg);
+      document.getElementById("resultText").textContent = msg;
+      return;
+    }
+
+    const resultDescription = describeSveveResult(data, testMode);
+    announce(resultDescription);
+    document.getElementById("resultText").textContent = resultDescription;
+    document.getElementById("resultJson").textContent =
+      JSON.stringify(data, null, 2);
+  } catch (err) {
+    console.error(err);
+    const msg = "En uventet feil oppstod: " + (err?.message || String(err));
+    announce(msg);
+    document.getElementById("resultText").textContent = msg;
+  } finally {
+    setBusy(false);
+  }
+}
+
+document.getElementById("message").addEventListener("input", e => {
+  document.getElementById("charCount").textContent =
+    `${e.target.value.length} av 1071 tegn.`;
+});
+
+document.getElementById("validateBtn").addEventListener("click", () => {
+  callSendSms(true);
+});
+
+document.getElementById("sendBtn").addEventListener("click", () => {
+  callSendSms(false);
+});
+
+(async () => {
+  await requireSession();
+
+  try {
+    currentAppUser = await getCurrentAppUser();
+
+    if (
+      !currentAppUser ||
+      currentAppUser.active !== true ||
+      !["system_admin", "admin"].includes(currentAppUser.app_role)
+    ) {
+      announce("Du har ikke tilgang til å sende SMS.");
+      document.getElementById("smsForm").hidden = true;
+      return;
+    }
+
+    announce(
+      "SMS-modulen er klar. Kjør først «Test mot Sveve uten å sende»."
+    );
+  } catch (err) {
+    console.error(err);
+    announce("Kunne ikke kontrollere portaltilgangen.");
+    document.getElementById("smsForm").hidden = true;
+  }
+})();
+</script>
+</body>
+</html>
