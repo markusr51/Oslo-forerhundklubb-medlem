@@ -188,9 +188,45 @@ async function callSendSms(testMode) {
 
     if (error) {
       console.error(error);
-      const msg = "SMS-kallet feilet: " + (error.message || "ukjent feil");
+
+      let detail = "";
+      let detailObject = null;
+
+      try {
+        if (error.context && typeof error.context.clone === "function") {
+          const responseClone = error.context.clone();
+
+          try {
+            detailObject = await responseClone.json();
+            detail =
+              detailObject?.error ||
+              detailObject?.message ||
+              JSON.stringify(detailObject);
+          } catch {
+            try {
+              detail = await error.context.text();
+            } catch {}
+          }
+        }
+      } catch (parseError) {
+        console.error("Kunne ikke lese feilsvar:", parseError);
+      }
+
+      const generic = error.message || "ukjent feil";
+      const msg = detail
+        ? "SMS-kallet feilet: " + detail
+        : "SMS-kallet feilet: " + generic;
+
       announce(msg);
       document.getElementById("resultText").textContent = msg;
+      document.getElementById("resultJson").textContent =
+        detailObject
+          ? JSON.stringify(detailObject, null, 2)
+          : JSON.stringify({
+              message: generic,
+              name: error.name || null
+            }, null, 2);
+
       return;
     }
 
