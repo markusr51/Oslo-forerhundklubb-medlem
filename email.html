@@ -26,49 +26,274 @@
 </nav>
 
 <main>
-  <p id="status" class="status" role="status" aria-live="polite">
-    Kontrollerer tilgang …
-  </p>
+<p id="status" class="status" role="status" aria-live="polite">Laster e-postmodulen …</p>
 
-  <section aria-labelledby="test-heading">
-    <h2 id="test-heading">Send test-e-post</h2>
-    <p>Denne første versjonen sender én testmail. Når dette fungerer, kobler vi på medlemsgrupper, vedlegg og velkomstpakker.</p>
+<section aria-labelledby="compose-heading">
+<h2 id="compose-heading">Ny e-post</h2>
 
-    <form id="emailForm">
-      <p>
-        <label for="to">Mottaker</label><br>
-        <input id="to" type="email" autocomplete="email" required>
-      </p>
+<form id="emailForm">
+<fieldset>
+<legend>Mottakere</legend>
 
-      <p>
-        <label for="subject">Emne</label><br>
-        <input id="subject" type="text" required>
-      </p>
+<p>
+<label for="recipientMode">Velg mottakertype</label><br>
+<select id="recipientMode">
+  <option value="manual">Manuell e-postadresse</option>
+  <option value="all">Alle aktive personer med e-postadresse</option>
+  <option value="role">Aktive personer med valgt rolle</option>
+  <option value="person">Én person fra medlemsregisteret</option>
+</select>
+</p>
 
-      <p>
-        <label for="message">Melding</label><br>
-        <textarea id="message" rows="10" required></textarea>
-      </p>
+<p id="manualWrap">
+<label for="manualEmail">E-postadresse</label><br>
+<input id="manualEmail" type="email" autocomplete="email">
+</p>
 
-      <button type="submit" id="sendBtn">Send test-e-post</button>
-    </form>
-  </section>
+<p id="roleWrap" hidden>
+<label for="roleSelect">Rolle</label><br>
+<select id="roleSelect"></select>
+</p>
 
-  <section aria-labelledby="result-heading">
-    <h2 id="result-heading">Resultat</h2>
-    <p id="resultText">Ingen sending er kjørt ennå.</p>
-    <details>
-      <summary>Tekniske detaljer</summary>
-      <pre id="resultJson"></pre>
-    </details>
-  </section>
+<p id="personWrap" hidden>
+<label for="personSelect">Person</label><br>
+<select id="personSelect"></select>
+</p>
+
+<p id="recipientSummary" role="status" aria-live="polite">Ingen mottakere beregnet ennå.</p>
+</fieldset>
+
+<p>
+<label for="subject">Emne</label><br>
+<input id="subject" type="text" maxlength="200" required>
+</p>
+
+<p>
+<label for="message">Melding</label><br>
+<textarea id="message" rows="14" maxlength="20000" required aria-describedby="messageCount"></textarea>
+</p>
+<p id="messageCount" aria-live="polite">0 tegn.</p>
+
+<fieldset>
+<legend>Vedlegg</legend>
+<p>
+<label for="attachments">Velg vedlegg</label><br>
+<input id="attachments" type="file" multiple>
+</p>
+<p id="attachmentSummary" role="status" aria-live="polite">Ingen vedlegg valgt.</p>
+<p>Maks 5 MB per fil og 10 MB totalt i denne versjonen.</p>
+</fieldset>
+
+<div class="actions">
+  <button type="button" id="previewBtn">Oppdater mottakerkontroll</button>
+  <button type="button" id="testBtn">Send test til meg</button>
+  <button type="button" id="sendBtn">Send e-post</button>
+</div>
+</form>
+</section>
+
+<section aria-labelledby="result-heading">
+<h2 id="result-heading">Resultat</h2>
+<p id="resultText">Ingen sending er kjørt ennå.</p>
+<details>
+  <summary>Tekniske detaljer</summary>
+  <pre id="resultJson"></pre>
+</details>
+</section>
+
+<section aria-labelledby="log-heading">
+<h2 id="log-heading">Siste e-postutsendelser</h2>
+<button type="button" id="refreshLog">Oppdater logg</button>
+<table>
+<caption>Siste e-postutsendelser</caption>
+<thead>
+<tr>
+  <th>Tid</th>
+  <th>Emne</th>
+  <th>Mottakere</th>
+  <th>Sendt</th>
+  <th>Feilet</th>
+</tr>
+</thead>
+<tbody id="logRows"></tbody>
+</table>
+</section>
 </main>
 
 <script>
-let currentAppUser = null;
+let me = null;
+let authUser = null;
+let persons = [];
+let roles = [];
+let recipientCache = [];
 
-function setBusy(isBusy) {
-  document.getElementById("sendBtn").disabled = isBusy;
+function escapeHtml(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function validEmail(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
+}
+
+function setBusy(v) {
+  previewBtn.disabled = v;
+  testBtn.disabled = v;
+  sendBtn.disabled = v;
+}
+
+async function loadReferenceData() {
+  const { data: p, error: pe } = await sb
+    .from("persons")
+    .select("id,full_name,email,membership_status,person_roles(is_active,roles(id,name))")
+    .order("full_name");
+  if (pe) throw pe;
+  persons = p || [];
+
+  const { data: r, error: re } = await sb
+    .from("roles")
+    .select("id,name")
+    .order("name");
+  if (re) throw re;
+  roles = r || [];
+
+  roleSelect.innerHTML = roles
+    .map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`)
+    .join("");
+
+  personSelect.innerHTML = persons
+    .map(p => `<option value="${p.id}">${escapeHtml(p.full_name)}${p.email ? " – " + escapeHtml(p.email) : " – mangler e-post"}</option>`)
+    .join("");
+}
+
+function currentRecipients() {
+  const mode = recipientMode.value;
+  let chosen = [];
+
+  if (mode === "manual") {
+    const email = manualEmail.value.trim().toLowerCase();
+    if (validEmail(email)) {
+      chosen = [{ email, personId: null, name: "Manuell mottaker" }];
+    }
+  } else if (mode === "all") {
+    chosen = persons
+      .filter(p => p.membership_status === "active" && validEmail(p.email))
+      .map(p => ({
+        email: p.email.trim().toLowerCase(),
+        personId: p.id,
+        name: p.full_name
+      }));
+  } else if (mode === "person") {
+    const p = persons.find(x => x.id === personSelect.value);
+    if (p && validEmail(p.email)) {
+      chosen = [{
+        email: p.email.trim().toLowerCase(),
+        personId: p.id,
+        name: p.full_name
+      }];
+    }
+  } else if (mode === "role") {
+    const rid = roleSelect.value;
+    chosen = persons
+      .filter(p =>
+        p.membership_status === "active" &&
+        validEmail(p.email) &&
+        (p.person_roles || []).some(pr =>
+          pr.is_active && pr.roles?.id === rid
+        )
+      )
+      .map(p => ({
+        email: p.email.trim().toLowerCase(),
+        personId: p.id,
+        name: p.full_name
+      }));
+  }
+
+  const seen = new Set();
+  return chosen.filter(x => {
+    const key = x.email.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function updateRecipientSummary() {
+  recipientCache = currentRecipients();
+
+  let missing = 0;
+  if (recipientMode.value === "all") {
+    missing = persons.filter(p =>
+      p.membership_status === "active" && !validEmail(p.email)
+    ).length;
+  } else if (recipientMode.value === "role") {
+    const rid = roleSelect.value;
+    missing = persons.filter(p =>
+      p.membership_status === "active" &&
+      (p.person_roles || []).some(pr => pr.is_active && pr.roles?.id === rid) &&
+      !validEmail(p.email)
+    ).length;
+  }
+
+  recipientSummary.textContent =
+    `${recipientCache.length} gyldige mottakere valgt.` +
+    (missing ? ` ${missing} person(er) i utvalget mangler gyldig e-postadresse.` : "");
+}
+
+function toggleRecipientFields() {
+  manualWrap.hidden = recipientMode.value !== "manual";
+  roleWrap.hidden = recipientMode.value !== "role";
+  personWrap.hidden = recipientMode.value !== "person";
+  updateRecipientSummary();
+}
+
+function updateAttachmentSummary() {
+  const files = [...attachments.files];
+  const total = files.reduce((sum, f) => sum + f.size, 0);
+
+  if (!files.length) {
+    attachmentSummary.textContent = "Ingen vedlegg valgt.";
+    return;
+  }
+
+  attachmentSummary.textContent =
+    `${files.length} vedlegg valgt, totalt ${(total / 1024 / 1024).toFixed(2)} MB.`;
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const comma = result.indexOf(",");
+      resolve({
+        filename: file.name,
+        content: comma >= 0 ? result.slice(comma + 1) : result,
+        contentType: file.type || "application/octet-stream",
+        size: file.size
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function prepareAttachments() {
+  const files = [...attachments.files];
+
+  for (const f of files) {
+    if (f.size > 5 * 1024 * 1024) {
+      throw new Error(`Vedlegget «${f.name}» er større enn 5 MB.`);
+    }
+  }
+
+  const total = files.reduce((sum, f) => sum + f.size, 0);
+  if (total > 10 * 1024 * 1024) {
+    throw new Error("Vedleggene er større enn 10 MB totalt.");
+  }
+
+  return Promise.all(files.map(fileToBase64));
 }
 
 async function extractFunctionError(error) {
@@ -77,112 +302,181 @@ async function extractFunctionError(error) {
 
   try {
     if (error?.context && typeof error.context.clone === "function") {
-      const responseClone = error.context.clone();
-
+      const clone = error.context.clone();
       try {
-        detailObject = await responseClone.json();
+        detailObject = await clone.json();
         detail =
           detailObject?.error ||
           detailObject?.message ||
           JSON.stringify(detailObject);
       } catch {
-        try {
-          detail = await error.context.text();
-        } catch {}
+        try { detail = await error.context.text(); } catch {}
       }
     }
-  } catch (parseError) {
-    console.error("Kunne ikke lese feilsvar:", parseError);
-  }
+  } catch {}
 
   return { detail, detailObject };
 }
 
-document.getElementById("emailForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
+async function invokeEmail({ testMode }) {
+  updateRecipientSummary();
 
-  const recipient = document.getElementById("to").value.trim();
-  const subject = document.getElementById("subject").value.trim();
-  const text = document.getElementById("message").value.trim();
+  const subjectText = subject.value.trim();
+  const messageText = message.value.trim();
 
-  if (!recipient || !subject || !text) {
-    announce("Mottaker, emne og melding må fylles ut.");
+  if (!subjectText) {
+    announce("Emne mangler.");
+    subject.focus();
+    return;
+  }
+  if (!messageText) {
+    announce("Meldingsteksten mangler.");
+    message.focus();
     return;
   }
 
-  if (!confirm(`Vil du sende én test-e-post til ${recipient}?`)) {
-    announce("Sending avbrutt.");
+  let recipients = recipientCache;
+
+  if (testMode) {
+    if (!authUser?.email || !validEmail(authUser.email)) {
+      announce("Kunne ikke finne e-postadressen til den innloggede brukeren.");
+      return;
+    }
+    recipients = [{
+      email: authUser.email.trim().toLowerCase(),
+      personId: null,
+      name: me?.display_name || "Testmottaker"
+    }];
+  }
+
+  if (!recipients.length) {
+    announce("Ingen gyldige mottakere.");
     return;
+  }
+
+  if (!testMode) {
+    if (!confirm(`Sende e-post til ${recipients.length} mottaker(e)?`)) {
+      announce("Sending avbrutt.");
+      return;
+    }
   }
 
   setBusy(true);
-  announce("Sender test-e-post …");
-  document.getElementById("resultText").textContent = "Venter på svar …";
-  document.getElementById("resultJson").textContent = "";
+  announce(testMode ? "Sender test-e-post til deg …" : "Sender e-post …");
+  resultText.textContent = "Forbereder sending …";
+  resultJson.textContent = "";
 
   try {
+    const fileData = await prepareAttachments();
+
+    resultText.textContent = "Venter på svar fra e-posttjenesten …";
+
     const { data, error } = await sb.functions.invoke("send-email", {
-      body: { to: recipient, subject, text }
+      body: {
+        recipients,
+        subject: subjectText,
+        text: messageText,
+        attachments: fileData,
+        test: testMode
+      }
     });
 
     if (error) {
-      console.error(error);
       const { detail, detailObject } = await extractFunctionError(error);
       const msg =
         "E-postkallet feilet: " +
         (detail || error.message || "ukjent feil");
 
       announce(msg);
-      document.getElementById("resultText").textContent = msg;
-      document.getElementById("resultJson").textContent =
-        detailObject
-          ? JSON.stringify(detailObject, null, 2)
-          : JSON.stringify({
-              message: error.message || null,
-              name: error.name || null
-            }, null, 2);
+      resultText.textContent = msg;
+      resultJson.textContent = detailObject
+        ? JSON.stringify(detailObject, null, 2)
+        : JSON.stringify({ message: error.message || null }, null, 2);
       return;
     }
 
-    const msg = data?.message || "E-posten ble godkjent av serveren.";
-    announce(msg);
-    document.getElementById("resultText").textContent = msg;
-    document.getElementById("resultJson").textContent =
-      JSON.stringify(data, null, 2);
-  } catch (err) {
-    console.error(err);
-    const msg =
-      "En uventet feil oppstod: " +
-      (err?.message || String(err));
+    const msg = testMode
+      ? `Test-e-post sendt til ${authUser.email}.`
+      : `Utsendelsen er ferdig. Sendt: ${data.sent || 0}. Feilet: ${data.failed || 0}.`;
 
     announce(msg);
-    document.getElementById("resultText").textContent = msg;
+    resultText.textContent = msg;
+    resultJson.textContent = JSON.stringify(data, null, 2);
+
+    if (!testMode) await loadLog();
+  } catch (err) {
+    const msg = "Sending feilet: " + (err?.message || String(err));
+    announce(msg);
+    resultText.textContent = msg;
   } finally {
     setBusy(false);
   }
+}
+
+async function loadLog() {
+  const { data, error } = await sb
+    .from("email_campaigns")
+    .select("id,subject,recipient_count,sent_count,failed_count,created_at")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    logRows.innerHTML =
+      `<tr><td colspan="5">${escapeHtml(error.message)}</td></tr>`;
+    return;
+  }
+
+  logRows.innerHTML = (data || []).map(c => `
+    <tr>
+      <td>${escapeHtml(new Date(c.created_at).toLocaleString("nb-NO"))}</td>
+      <td>${escapeHtml(c.subject)}</td>
+      <td>${escapeHtml(c.recipient_count)}</td>
+      <td>${escapeHtml(c.sent_count)}</td>
+      <td>${escapeHtml(c.failed_count)}</td>
+    </tr>`).join("") || `<tr><td colspan="5">Ingen e-postutsendelser logget ennå.</td></tr>`;
+}
+
+recipientMode.addEventListener("change", toggleRecipientFields);
+roleSelect.addEventListener("change", updateRecipientSummary);
+personSelect.addEventListener("change", updateRecipientSummary);
+manualEmail.addEventListener("input", updateRecipientSummary);
+previewBtn.addEventListener("click", updateRecipientSummary);
+attachments.addEventListener("change", updateAttachmentSummary);
+testBtn.addEventListener("click", () => invokeEmail({ testMode: true }));
+sendBtn.addEventListener("click", () => invokeEmail({ testMode: false }));
+refreshLog.addEventListener("click", loadLog);
+message.addEventListener("input", () => {
+  messageCount.textContent = `${message.value.length} tegn.`;
 });
 
 (async () => {
   await requireSession();
 
   try {
-    currentAppUser = await getCurrentAppUser();
+    const { data: { user } } = await sb.auth.getUser();
+    authUser = user;
+    me = await getCurrentAppUser();
 
     if (
-      !currentAppUser ||
-      currentAppUser.active !== true ||
-      !["system_admin", "admin"].includes(currentAppUser.app_role)
+      !me ||
+      me.active !== true ||
+      !["system_admin", "admin"].includes(me.app_role)
     ) {
-      announce("Du har ikke tilgang til å sende e-post.");
-      document.getElementById("emailForm").hidden = true;
+      announce("Du har ikke tilgang til e-postmodulen.");
+      emailForm.hidden = true;
       return;
     }
 
-    announce("E-postmodulen er klar for test.");
+    await loadReferenceData();
+    toggleRecipientFields();
+    updateAttachmentSummary();
+    await loadLog();
+
+    announce("E-postmodulen er klar.");
   } catch (err) {
     console.error(err);
-    announce("Kunne ikke kontrollere portaltilgangen.");
-    document.getElementById("emailForm").hidden = true;
+    announce("Kunne ikke laste e-postmodulen: " + (err?.message || String(err)));
+    emailForm.hidden = true;
   }
 })();
 </script>
