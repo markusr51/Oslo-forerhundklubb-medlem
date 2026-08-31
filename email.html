@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>E-post – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header>
+  <img src="logo.png" alt="Oslo Førerhundklubb">
+  <h1>E-post</h1>
+</header>
+
+<nav aria-label="Hovedmeny">
+  <a href="members.html">Medlemmer</a>
+  <a href="new-person.html">Legg til person</a>
+  <a href="sms.html">SMS</a>
+  <a href="email.html" aria-current="page">E-post</a>
+  <a href="admins.html">Brukere og tilganger</a>
+  <a href="history.html">Endringshistorikk</a>
+  <button type="button" onclick="logout()">Logg ut</button>
+</nav>
+
+<main>
+  <p id="status" class="status" role="status" aria-live="polite">
+    Kontrollerer tilgang …
+  </p>
+
+  <section aria-labelledby="test-heading">
+    <h2 id="test-heading">Send test-e-post</h2>
+    <p>Denne første versjonen sender én testmail. Når dette fungerer, kobler vi på medlemsgrupper, vedlegg og velkomstpakker.</p>
+
+    <form id="emailForm">
+      <p>
+        <label for="to">Mottaker</label><br>
+        <input id="to" type="email" autocomplete="email" required>
+      </p>
+
+      <p>
+        <label for="subject">Emne</label><br>
+        <input id="subject" type="text" required>
+      </p>
+
+      <p>
+        <label for="message">Melding</label><br>
+        <textarea id="message" rows="10" required></textarea>
+      </p>
+
+      <button type="submit" id="sendBtn">Send test-e-post</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="result-heading">
+    <h2 id="result-heading">Resultat</h2>
+    <p id="resultText">Ingen sending er kjørt ennå.</p>
+    <details>
+      <summary>Tekniske detaljer</summary>
+      <pre id="resultJson"></pre>
+    </details>
+  </section>
+</main>
+
+<script>
+let currentAppUser = null;
+
+function setBusy(isBusy) {
+  document.getElementById("sendBtn").disabled = isBusy;
+}
+
+async function extractFunctionError(error) {
+  let detail = "";
+  let detailObject = null;
+
+  try {
+    if (error?.context && typeof error.context.clone === "function") {
+      const responseClone = error.context.clone();
+
+      try {
+        detailObject = await responseClone.json();
+        detail =
+          detailObject?.error ||
+          detailObject?.message ||
+          JSON.stringify(detailObject);
+      } catch {
+        try {
+          detail = await error.context.text();
+        } catch {}
+      }
+    }
+  } catch (parseError) {
+    console.error("Kunne ikke lese feilsvar:", parseError);
+  }
+
+  return { detail, detailObject };
+}
+
+document.getElementById("emailForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const recipient = document.getElementById("to").value.trim();
+  const subject = document.getElementById("subject").value.trim();
+  const text = document.getElementById("message").value.trim();
+
+  if (!recipient || !subject || !text) {
+    announce("Mottaker, emne og melding må fylles ut.");
+    return;
+  }
+
+  if (!confirm(`Vil du sende én test-e-post til ${recipient}?`)) {
+    announce("Sending avbrutt.");
+    return;
+  }
+
+  setBusy(true);
+  announce("Sender test-e-post …");
+  document.getElementById("resultText").textContent = "Venter på svar …";
+  document.getElementById("resultJson").textContent = "";
+
+  try {
+    const { data, error } = await sb.functions.invoke("send-email", {
+      body: { to: recipient, subject, text }
+    });
+
+    if (error) {
+      console.error(error);
+      const { detail, detailObject } = await extractFunctionError(error);
+      const msg =
+        "E-postkallet feilet: " +
+        (detail || error.message || "ukjent feil");
+
+      announce(msg);
+      document.getElementById("resultText").textContent = msg;
+      document.getElementById("resultJson").textContent =
+        detailObject
+          ? JSON.stringify(detailObject, null, 2)
+          : JSON.stringify({
+              message: error.message || null,
+              name: error.name || null
+            }, null, 2);
+      return;
+    }
+
+    const msg = data?.message || "E-posten ble godkjent av serveren.";
+    announce(msg);
+    document.getElementById("resultText").textContent = msg;
+    document.getElementById("resultJson").textContent =
+      JSON.stringify(data, null, 2);
+  } catch (err) {
+    console.error(err);
+    const msg =
+      "En uventet feil oppstod: " +
+      (err?.message || String(err));
+
+    announce(msg);
+    document.getElementById("resultText").textContent = msg;
+  } finally {
+    setBusy(false);
+  }
+});
+
+(async () => {
+  await requireSession();
+
+  try {
+    currentAppUser = await getCurrentAppUser();
+
+    if (
+      !currentAppUser ||
+      currentAppUser.active !== true ||
+      !["system_admin", "admin"].includes(currentAppUser.app_role)
+    ) {
+      announce("Du har ikke tilgang til å sende e-post.");
+      document.getElementById("emailForm").hidden = true;
+      return;
+    }
+
+    announce("E-postmodulen er klar for test.");
+  } catch (err) {
+    console.error(err);
+    announce("Kunne ikke kontrollere portaltilgangen.");
+    document.getElementById("emailForm").hidden = true;
+  }
+})();
+</script>
+</body>
+</html>
