@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arrangement – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script src="events.js"></script>
+</head>
+<body>
+<header><h1 id="eventHeading">Arrangement</h1></header>
+<nav aria-label="Hovedmeny">
+<a href="events.html">Til arrangementer</a>
+<a href="members.html">Medlemmer</a>
+<button type="button" onclick="logout()">Logg ut</button>
+</nav>
+
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster …</p>
+
+<section aria-labelledby="detailsHeading">
+<h2 id="detailsHeading">Detaljer</h2>
+<dl id="details"></dl>
+<div class="actions">
+<a id="editLink" class="button" href="#">Rediger arrangement</a>
+<button id="cancelBtn" type="button">Avlys arrangement</button>
+<button id="restoreBtn" type="button" hidden>Gjenåpne arrangement</button>
+</div>
+</section>
+
+<section aria-labelledby="participantsHeading">
+<h2 id="participantsHeading">Deltakere og påmeldinger</h2>
+<p id="participantSummary">Ingen deltakere lastet ennå.</p>
+
+<form id="participantForm">
+<fieldset>
+<legend>Legg til eller oppdater deltaker</legend>
+
+<p>
+<label for="personSelect">Person</label><br>
+<select id="personSelect"></select>
+</p>
+
+<p>
+<label for="participantStatus">Påmeldingsstatus</label><br>
+<select id="participantStatus">
+<option value="pending">Avventer</option>
+<option value="attending">Påmeldt</option>
+<option value="declined">Avmeldt</option>
+</select>
+</p>
+
+<p>
+<label for="guestCount">Ekstra deltakere / ledsagere</label><br>
+<select id="guestCount">
+<option value="0">0</option>
+<option value="1">1</option>
+<option value="2">2</option>
+<option value="3">3</option>
+<option value="4">4</option>
+<option value="5">5</option>
+</select>
+</p>
+
+<p>
+<label for="participantNote">Notat</label><br>
+<input id="participantNote" type="text" maxlength="500">
+</p>
+
+<button type="submit">Lagre deltaker</button>
+</fieldset>
+</form>
+
+<table>
+<caption>Deltakerliste</caption>
+<thead>
+<tr>
+<th>Navn</th>
+<th>Status</th>
+<th>Ekstra</th>
+<th>Notat</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody id="participantRows"></tbody>
+</table>
+</section>
+
+<section class="danger" aria-labelledby="deleteHeading">
+<h2 id="deleteHeading">Permanent sletting</h2>
+<p>Permanent sletting er bare tilgjengelig for systemadministrator.</p>
+<button id="deleteBtn" type="button">Slett arrangement permanent</button>
+</section>
+</main>
+
+<script>
+const eventId = new URLSearchParams(location.search).get("id");
+let me = null;
+let currentEvent = null;
+let people = [];
+
+function escapeHtml(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function participantStatusText(v) {
+  return ({ pending:"Avventer", attending:"Påmeldt", declined:"Avmeldt" })[v] || v;
+}
+
+async function loadEvent() {
+  const { data, error } = await sb
+    .from("events")
+    .select("*")
+    .eq("id", eventId)
+    .single();
+
+  if (error) throw error;
+  currentEvent = data;
+
+  eventHeading.textContent = data.title;
+  editLink.href = "event-edit.html?id=" + encodeURIComponent(eventId);
+
+  details.innerHTML = `
+    <dt>Dato</dt><dd>${escapeHtml(norwegianDate(data.event_date))}</dd>
+    <dt>Tid</dt><dd>${escapeHtml(norwegianTime(data.start_time))}${data.end_time ? "–" + escapeHtml(norwegianTime(data.end_time)) : ""}</dd>
+    <dt>Sted</dt><dd>${escapeHtml(data.location || "Ikke angitt")}</dd>
+    <dt>Status</dt><dd>${escapeHtml(eventStatusText(data.status))}</dd>
+    <dt>Påmeldingsfrist</dt><dd>${escapeHtml(data.registration_deadline ? norwegianDate(data.registration_deadline) : "Ingen")}</dd>
+    <dt>Beskrivelse</dt><dd>${escapeHtml(data.description || "Ingen beskrivelse")}</dd>
+  `;
+
+  cancelBtn.hidden = data.status === "cancelled";
+  restoreBtn.hidden = data.status !== "cancelled";
+}
+
+async function loadPeople() {
+  const { data, error } = await sb
+    .from("persons")
+    .select("id,full_name,membership_status")
+    .order("full_name");
+  if (error) throw error;
+  people = data || [];
+
+  personSelect.innerHTML = people.map(p =>
+    `<option value="${p.id}">${escapeHtml(p.full_name)}${p.membership_status !== "active" ? " – " + escapeHtml(p.membership_status) : ""}</option>`
+  ).join("");
+}
+
+async function loadParticipants() {
+  const { data, error } = await sb
+    .from("event_participants")
+    .select("id,person_id,status,guest_count,note,persons(full_name)")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  const rows = data || [];
+  const attending = rows.filter(r => r.status === "attending");
+  const totalPeople = attending.reduce((sum, r) => sum + 1 + Number(r.guest_count || 0), 0);
+
+  participantSummary.textContent =
+    `${rows.length} registrerte svar. ${attending.length} påmeldte medlemmer/personer, totalt ${totalPeople} personer inkludert ekstra deltakere.`;
+
+  participantRows.innerHTML = rows.map(r => `
+    <tr>
+      <td>${escapeHtml(r.persons?.full_name || "Ukjent person")}</td>
+      <td>${escapeHtml(participantStatusText(r.status))}</td>
+      <td>${escapeHtml(r.guest_count || 0)}</td>
+      <td>${escapeHtml(r.note || "")}</td>
+      <td>
+        <button type="button"
+          data-edit-person="${r.person_id}"
+          data-status="${r.status}"
+          data-guests="${r.guest_count || 0}"
+          data-note="${escapeHtml(r.note || "")}">
+          Rediger
+        </button>
+        <button type="button" data-remove="${r.id}">Fjern</button>
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">Ingen deltakere registrert ennå.</td></tr>`;
+
+  participantRows.querySelectorAll("[data-edit-person]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      personSelect.value = btn.dataset.editPerson;
+      participantStatus.value = btn.dataset.status;
+      guestCount.value = btn.dataset.guests;
+      participantNote.value = btn.dataset.note || "";
+      announce("Deltakeren er lastet inn i skjemaet for redigering.");
+      personSelect.focus();
+    });
+  });
+
+  participantRows.querySelectorAll("[data-remove]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Fjerne denne deltakeren fra arrangementet?")) return;
+      const { error } = await sb
+        .from("event_participants")
+        .delete()
+        .eq("id", btn.dataset.remove);
+
+      if (error) {
+        announce("Kunne ikke fjerne deltaker: " + error.message);
+        return;
+      }
+
+      announce("Deltakeren er fjernet.");
+      await loadParticipants();
+    });
+  });
+}
+
+participantForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const row = {
+    event_id: eventId,
+    person_id: personSelect.value,
+    status: participantStatus.value,
+    guest_count: Number(guestCount.value),
+    note: participantNote.value.trim() || null,
+  };
+
+  const { error } = await sb
+    .from("event_participants")
+    .upsert(row, {
+      onConflict: "event_id,person_id"
+    });
+
+  if (error) {
+    announce("Kunne ikke lagre deltaker: " + error.message);
+    return;
+  }
+
+  announce("Deltakeren er lagret.");
+  participantNote.value = "";
+  guestCount.value = "0";
+  participantStatus.value = "pending";
+  await loadParticipants();
+});
+
+cancelBtn.addEventListener("click", async () => {
+  if (!confirm("Vil du avlyse arrangementet?")) return;
+
+  const { error } = await sb
+    .from("events")
+    .update({ status: "cancelled" })
+    .eq("id", eventId);
+
+  if (error) {
+    announce("Kunne ikke avlyse arrangementet: " + error.message);
+    return;
+  }
+
+  announce("Arrangementet er avlyst.");
+  await loadEvent();
+});
+
+restoreBtn.addEventListener("click", async () => {
+  const { error } = await sb
+    .from("events")
+    .update({ status: "planned" })
+    .eq("id", eventId);
+
+  if (error) {
+    announce("Kunne ikke gjenåpne arrangementet: " + error.message);
+    return;
+  }
+
+  announce("Arrangementet er gjenåpnet.");
+  await loadEvent();
+});
+
+deleteBtn.addEventListener("click", async () => {
+  if (me?.app_role !== "system_admin") {
+    announce("Bare systemadministrator kan slette arrangement permanent.");
+    return;
+  }
+
+  if (!confirm("Dette sletter arrangementet og deltakerlisten permanent. Fortsette?")) return;
+  if (!confirm("Bekreft permanent sletting én gang til.")) return;
+
+  const { error } = await sb
+    .from("events")
+    .delete()
+    .eq("id", eventId);
+
+  if (error) {
+    announce("Sletting feilet: " + error.message);
+    return;
+  }
+
+  location.href = "events.html";
+});
+
+(async () => {
+  await requireSession();
+
+  if (!eventId) {
+    announce("Arrangement-ID mangler.");
+    return;
+  }
+
+  try {
+    me = await getCurrentAppUser();
+    await loadEvent();
+    await loadPeople();
+    await loadParticipants();
+
+    if (me?.app_role !== "system_admin") {
+      deleteBtn.hidden = true;
+    }
+
+    announce("Arrangementet er klart.");
+  } catch (err) {
+    console.error(err);
+    announce("Kunne ikke laste arrangementet: " + (err?.message || String(err)));
+  }
+})();
+</script>
+</body>
+</html>

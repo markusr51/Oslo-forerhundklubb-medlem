@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rediger arrangement – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script src="events.js"></script>
+</head>
+<body>
+<header><h1 id="pageHeading">Opprett arrangement</h1></header>
+<nav aria-label="Hovedmeny">
+<a href="events.html">Til arrangementer</a>
+<a href="members.html">Medlemmer</a>
+<button type="button" onclick="logout()">Logg ut</button>
+</nav>
+
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Klar.</p>
+
+<form id="eventForm">
+<p>
+<label for="title">Navn på arrangement</label><br>
+<input id="title" type="text" maxlength="200" required>
+</p>
+
+<p>
+<label for="location">Sted</label><br>
+<input id="location" type="text" maxlength="300">
+</p>
+
+<p>
+<label for="description">Beskrivelse</label><br>
+<textarea id="description" rows="10"></textarea>
+</p>
+
+<fieldset>
+<legend>Dato</legend>
+<p>
+<label for="eventDay">Dag</label>
+<select id="eventDay"></select>
+
+<label for="eventMonth">Måned</label>
+<select id="eventMonth"></select>
+
+<label for="eventYear">År</label>
+<select id="eventYear"></select>
+</p>
+</fieldset>
+
+<fieldset>
+<legend>Starttid</legend>
+<p>
+<label for="startHour">Time</label>
+<select id="startHour"></select>
+
+<label for="startMinute">Minutt</label>
+<select id="startMinute"></select>
+</p>
+</fieldset>
+
+<fieldset>
+<legend>Sluttid</legend>
+<p>
+<label for="endHour">Time</label>
+<select id="endHour"></select>
+
+<label for="endMinute">Minutt</label>
+<select id="endMinute"></select>
+</p>
+<p>Velg «Ingen» under time hvis arrangementet ikke skal ha registrert sluttid.</p>
+</fieldset>
+
+<fieldset>
+<legend>Påmeldingsfrist</legend>
+<p>
+<label for="deadlineEnabled">
+<input id="deadlineEnabled" type="checkbox">
+Arrangementet har påmeldingsfrist
+</label>
+</p>
+<div id="deadlineFields" hidden>
+<p>
+<label for="deadlineDay">Dag</label>
+<select id="deadlineDay"></select>
+
+<label for="deadlineMonth">Måned</label>
+<select id="deadlineMonth"></select>
+
+<label for="deadlineYear">År</label>
+<select id="deadlineYear"></select>
+</p>
+</div>
+</fieldset>
+
+<p>
+<label for="statusSelect">Status</label><br>
+<select id="statusSelect">
+<option value="planned">Planlagt</option>
+<option value="cancelled">Avlyst</option>
+<option value="completed">Gjennomført</option>
+</select>
+</p>
+
+<button type="submit">Lagre arrangement</button>
+</form>
+</main>
+
+<script>
+const eventId = new URLSearchParams(location.search).get("id");
+
+function setDefaultEndTime() {
+  startHour.value = "18";
+  startMinute.value = "00";
+  endHour.value = "20";
+  endMinute.value = "00";
+}
+
+(async () => {
+  await requireSession();
+
+  populateDateSelects("event");
+  populateTimeSelects("start", false, 18, 0);
+  populateTimeSelects("end", true, 20, 0);
+  populateDateSelects("deadline");
+
+  deadlineEnabled.addEventListener("change", () => {
+    deadlineFields.hidden = !deadlineEnabled.checked;
+  });
+
+  if (!eventId) {
+    setDefaultEndTime();
+    return;
+  }
+
+  pageHeading.textContent = "Rediger arrangement";
+  announce("Laster arrangement …");
+
+  const { data, error } = await sb
+    .from("events")
+    .select("*")
+    .eq("id", eventId)
+    .single();
+
+  if (error) {
+    announce("Kunne ikke hente arrangementet: " + error.message);
+    eventForm.hidden = true;
+    return;
+  }
+
+  title.value = data.title || "";
+  location.value = data.location || "";
+  description.value = data.description || "";
+  setDateSelects("event", data.event_date);
+  setTimeSelects("start", data.start_time, false);
+  setTimeSelects("end", data.end_time, true);
+  statusSelect.value = data.status || "planned";
+
+  if (data.registration_deadline) {
+    deadlineEnabled.checked = true;
+    deadlineFields.hidden = false;
+    setDateSelects("deadline", data.registration_deadline);
+  }
+
+  announce("Arrangementet er lastet.");
+})();
+
+eventForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const eventDate = getDateFromSelects("event");
+  const deadline = deadlineEnabled.checked
+    ? getDateFromSelects("deadline")
+    : null;
+
+  if (!eventDate) {
+    announce("Datoen er ugyldig.");
+    return;
+  }
+
+  if (deadlineEnabled.checked && !deadline) {
+    announce("Påmeldingsfristen er ugyldig.");
+    return;
+  }
+
+  const row = {
+    title: title.value.trim(),
+    location: location.value.trim() || null,
+    description: description.value.trim() || null,
+    event_date: eventDate,
+    start_time: getTimeFromSelects("start"),
+    end_time: getTimeFromSelects("end", true),
+    registration_deadline: deadline,
+    status: statusSelect.value
+  };
+
+  if (!row.title) {
+    announce("Arrangementet må ha et navn.");
+    title.focus();
+    return;
+  }
+
+  announce("Lagrer arrangement …");
+
+  if (eventId) {
+    const { error } = await sb
+      .from("events")
+      .update(row)
+      .eq("id", eventId);
+
+    if (error) {
+      announce("Lagring feilet: " + error.message);
+      return;
+    }
+
+    location.href = "event.html?id=" + encodeURIComponent(eventId);
+  } else {
+    const { data, error } = await sb
+      .from("events")
+      .insert(row)
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      announce("Oppretting feilet: " + (error?.message || "ukjent feil"));
+      return;
+    }
+
+    location.href = "event.html?id=" + encodeURIComponent(data.id);
+  }
+});
+</script>
+</body>
+</html>
