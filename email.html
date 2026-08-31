@@ -60,6 +60,10 @@
 <select id="personSelect"></select>
 </p>
 
+<p id="selectedRecipient" class="status" role="status" aria-live="polite">
+Ingen konkret mottaker valgt.
+</p>
+
 <p id="recipientSummary" role="status" aria-live="polite">Ingen mottakere beregnet ennå.</p>
 </fieldset>
 
@@ -227,13 +231,32 @@ function updateRecipientSummary() {
     missing = persons.filter(p =>
       p.membership_status === "active" && !validEmail(p.email)
     ).length;
+
+    selectedRecipient.textContent =
+      "Valgt mottakergruppe: Alle aktive personer med e-postadresse.";
   } else if (recipientMode.value === "role") {
     const rid = roleSelect.value;
+    const role = roles.find(r => r.id === rid);
+
     missing = persons.filter(p =>
       p.membership_status === "active" &&
       (p.person_roles || []).some(pr => pr.is_active && pr.roles?.id === rid) &&
       !validEmail(p.email)
     ).length;
+
+    selectedRecipient.textContent =
+      "Valgt rolle: " + (role?.name || "ukjent rolle") + ".";
+  } else if (recipientMode.value === "person") {
+    const p = persons.find(x => x.id === personSelect.value);
+
+    selectedRecipient.textContent = p
+      ? `Valgt person: ${p.full_name}${p.email ? " – " + p.email : " – mangler e-postadresse"}.`
+      : "Ingen person valgt.";
+  } else {
+    const email = manualEmail.value.trim();
+    selectedRecipient.textContent = email
+      ? "Manuell mottaker: " + email + "."
+      : "Ingen manuell mottaker skrevet inn.";
   }
 
   recipientSummary.textContent =
@@ -316,6 +339,24 @@ async function extractFunctionError(error) {
   } catch {}
 
   return { detail, detailObject };
+}
+
+function resetEmailFormAfterSuccess() {
+  emailForm.reset();
+
+  recipientMode.value = "manual";
+  manualEmail.value = "";
+  subject.value = "";
+  message.value = "";
+  attachments.value = "";
+
+  messageCount.textContent = "0 tegn.";
+  attachmentSummary.textContent = "Ingen vedlegg valgt.";
+
+  toggleRecipientFields();
+  updateRecipientSummary();
+
+  selectedRecipient.textContent = "Ingen konkret mottaker valgt.";
 }
 
 async function invokeEmail({ testMode }) {
@@ -404,6 +445,10 @@ async function invokeEmail({ testMode }) {
     resultJson.textContent = JSON.stringify(data, null, 2);
 
     if (!testMode) await loadLog();
+
+    if ((data.sent || 0) > 0) {
+      resetEmailFormAfterSuccess();
+    }
   } catch (err) {
     const msg = "Sending feilet: " + (err?.message || String(err));
     announce(msg);
@@ -437,8 +482,22 @@ async function loadLog() {
 }
 
 recipientMode.addEventListener("change", toggleRecipientFields);
-roleSelect.addEventListener("change", updateRecipientSummary);
-personSelect.addEventListener("change", updateRecipientSummary);
+roleSelect.addEventListener("change", () => {
+  const chosen = roleSelect.value;
+  requestAnimationFrame(() => {
+    roleSelect.value = chosen;
+    updateRecipientSummary();
+  });
+});
+
+personSelect.addEventListener("change", () => {
+  const chosen = personSelect.value;
+  requestAnimationFrame(() => {
+    personSelect.value = chosen;
+    updateRecipientSummary();
+  });
+});
+
 manualEmail.addEventListener("input", updateRecipientSummary);
 previewBtn.addEventListener("click", updateRecipientSummary);
 attachments.addEventListener("change", updateAttachmentSummary);
