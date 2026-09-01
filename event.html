@@ -16,6 +16,8 @@
 <nav aria-label="Hovedmeny">
 <a href="events.html">Til arrangementer</a>
 <a href="members.html">Medlemmer</a>
+<a href="groups.html">Grupper og utvalg</a>
+<a href="roles.html">Roller</a>
 <a href="sms.html">SMS</a>
 <a href="email.html">E-post</a>
 <button type="button" onclick="logout()">Logg ut</button>
@@ -49,6 +51,7 @@
 <option value="attending">Påmeldte deltakere</option>
 <option value="associated">Alle tilknyttede personer</option>
 <option value="function">Tilknyttede med valgt funksjon</option>
+<option value="group">Gruppe eller utvalg</option>
 </select>
 </p>
 
@@ -60,6 +63,11 @@
 <p id="audiencePersonWrap" hidden>
 <label for="audiencePerson">Person</label><br>
 <select id="audiencePerson"><option value="">Ingen valgt</option></select>
+</p>
+
+<p id="audienceGroupWrap" hidden>
+<label for="audienceGroup">Gruppe eller utvalg</label><br>
+<select id="audienceGroup"><option value="">Ingen valgt</option></select>
 </p>
 
 <p id="audienceFunctionWrap" hidden>
@@ -237,6 +245,32 @@
 </select>
 </p>
 
+<fieldset>
+<legend>Målgruppe for denne automatiske utsendelsen</legend>
+<p>
+<label for="automationTargetType">Målgruppetype</label><br>
+<select id="automationTargetType">
+<option value="all">Alle aktive personer</option>
+<option value="role">Aktive personer med valgt rolle</option>
+<option value="group">Gruppe eller utvalg</option>
+</select>
+</p>
+
+<p id="automationTargetRoleWrap" hidden>
+<label for="automationTargetRole">Rolle</label><br>
+<select id="automationTargetRole"><option value="">Ingen valgt</option></select>
+</p>
+
+<p id="automationTargetGroupWrap" hidden>
+<label for="automationTargetGroup">Gruppe eller utvalg</label><br>
+<select id="automationTargetGroup"><option value="">Ingen valgt</option></select>
+</p>
+
+<p id="automationTargetSummary" class="status" role="status" aria-live="polite">
+Målgruppe: Alle aktive personer.
+</p>
+</fieldset>
+
 <p>
 <label for="automationDays">Antall dager før arrangementet</label><br>
 <select id="automationDays"></select>
@@ -256,17 +290,24 @@
 </select>
 </p>
 
+<div id="automationSmsFields">
 <p><label><input id="automationReply" type="checkbox"> SMS skal være svarbar</label></p>
-
 <p>
-<label for="automationSubject">E-postemne</label><br>
-<input id="automationSubject" type="text" maxlength="200">
+<label for="automationSmsMessage">SMS-tekst</label><br>
+<textarea id="automationSmsMessage" rows="6" maxlength="1071"></textarea>
 </p>
+</div>
 
+<div id="automationEmailFields" hidden>
 <p>
-<label for="automationMessage">Melding</label><br>
-<textarea id="automationMessage" rows="8" maxlength="10000"></textarea>
+<label for="automationEmailSubject">E-postemne</label><br>
+<input id="automationEmailSubject" type="text" maxlength="200">
 </p>
+<p>
+<label for="automationEmailMessage">E-postmelding</label><br>
+<textarea id="automationEmailMessage" rows="10" maxlength="20000"></textarea>
+</p>
+</div>
 
 <button type="submit">Lagre automatisk utsendelse</button>
 </form>
@@ -310,6 +351,7 @@ let roles = [];
 let participants = [];
 let associatedPeople = [];
 let automationRules = [];
+let groups = [];
 
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({
   "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
@@ -377,6 +419,22 @@ async function loadPeople() {
   audienceRole.innerHTML =
     `<option value="">Ingen valgt</option>` +
     roles.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join("");
+
+  automationTargetRole.innerHTML =
+    `<option value="">Ingen valgt</option>` +
+    roles.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join("");
+
+  const {data:g,error:ge} = await sb
+    .from("groups")
+    .select("id,name,active,group_members(person_id)")
+    .eq("active",true)
+    .order("name");
+  if (ge) throw ge;
+  groups = g || [];
+
+  const groupOptions = groups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join("");
+  audienceGroup.innerHTML = `<option value="">Ingen valgt</option>` + groupOptions;
+  automationTargetGroup.innerHTML = `<option value="">Ingen valgt</option>` + groupOptions;
 
   selectedPerson();
 }
@@ -604,6 +662,12 @@ function audience() {
     return people.filter(p => ids.has(p.id));
   }
 
+  if (audienceMode.value === "group") {
+    const g = groups.find(x => x.id === audienceGroup.value);
+    const ids = new Set((g?.group_members || []).map(m => m.person_id));
+    return people.filter(p => ids.has(p.id));
+  }
+
   return [];
 }
 
@@ -611,6 +675,7 @@ function updateAudience() {
   audienceRoleWrap.hidden = audienceMode.value !== "role";
   audiencePersonWrap.hidden = audienceMode.value !== "person";
   audienceFunctionWrap.hidden = audienceMode.value !== "function";
+  audienceGroupWrap.hidden = audienceMode.value !== "group";
 
   const a = audience();
   audienceStatus.textContent =
@@ -740,6 +805,7 @@ async function sendCommunication(test) {
   announce(communicationResult.textContent);
 }
 
+
 function automationTypeText(v) {
   return ({
     invitation:"Invitasjon",
@@ -750,6 +816,56 @@ function automationTypeText(v) {
 
 function automationChannelText(v) {
   return ({sms:"SMS",email:"E-post",both:"SMS og e-post"})[v] || v;
+}
+
+function targetLabel(rule) {
+  if (rule.target_type === "role") {
+    return "Rolle: " + (roles.find(r=>r.id===rule.target_role_id)?.name || "ukjent rolle");
+  }
+  if (rule.target_type === "group") {
+    return "Gruppe: " + (groups.find(g=>g.id===rule.target_group_id)?.name || "ukjent gruppe");
+  }
+  return "Alle aktive personer";
+}
+
+function automationTargetPeople() {
+  if (automationTargetType.value === "role") {
+    const rid = automationTargetRole.value;
+    if (!rid) return [];
+    return people.filter(p =>
+      p.membership_status === "active" &&
+      (p.person_roles || []).some(pr => pr.is_active && pr.roles?.id === rid)
+    );
+  }
+
+  if (automationTargetType.value === "group") {
+    const g = groups.find(x=>x.id===automationTargetGroup.value);
+    const ids = new Set((g?.group_members || []).map(m=>m.person_id));
+    return people.filter(p=>ids.has(p.id));
+  }
+
+  return people.filter(p=>p.membership_status === "active");
+}
+
+function updateAutomationTargetSummary() {
+  automationTargetRoleWrap.hidden = automationTargetType.value !== "role";
+  automationTargetGroupWrap.hidden = automationTargetType.value !== "group";
+
+  const selected = automationTargetPeople();
+  let label = "Alle aktive personer";
+  if (automationTargetType.value === "role")
+    label = "Rolle: " + (roles.find(r=>r.id===automationTargetRole.value)?.name || "Ingen valgt");
+  if (automationTargetType.value === "group")
+    label = "Gruppe: " + (groups.find(g=>g.id===automationTargetGroup.value)?.name || "Ingen valgt");
+
+  automationTargetSummary.textContent =
+    `Målgruppe: ${label}. ${selected.length} personer.`;
+}
+
+function updateAutomationChannelFields() {
+  const ch = automationChannel.value;
+  automationSmsFields.hidden = ch === "email";
+  automationEmailFields.hidden = ch === "sms";
 }
 
 function initAutomationControls() {
@@ -765,6 +881,9 @@ function initAutomationControls() {
     automationHour.insertAdjacentHTML("beforeend", `<option value="${h}">${hh}:00</option>`);
   }
   automationHour.value = "18";
+
+  updateAutomationTargetSummary();
+  updateAutomationChannelFields();
 }
 
 async function loadAutomationRules() {
@@ -783,12 +902,14 @@ async function loadAutomationRules() {
 
   automationRows.innerHTML = automationRules.map(r => `
     <tr>
-      <td>${esc(automationTypeText(r.rule_type))}</td>
+      <td>${esc(automationTypeText(r.rule_type))}<br><small>${esc(targetLabel(r))}</small></td>
       <td>${esc(r.days_before)} dager før kl. ${String(r.send_hour).padStart(2,"0")}:00</td>
       <td>${esc(automationChannelText(r.channel))}</td>
       <td>${r.enabled ? (r.last_sent_at ? "Sendt" : "Aktiv") : "Av"}</td>
       <td>
-        <button type="button" data-auto-toggle="${r.id}" data-enabled="${r.enabled}">${r.enabled ? "Deaktiver" : "Aktiver"}</button>
+        <button type="button" data-auto-toggle="${r.id}" data-enabled="${r.enabled}">
+          ${r.enabled ? "Deaktiver" : "Aktiver"}
+        </button>
         <button type="button" data-auto-delete="${r.id}">Slett</button>
       </td>
     </tr>
@@ -948,37 +1069,79 @@ noteForm.onsubmit = async e => {
   announce("Notatet er lagret.");
 };
 
+
 automationType.onchange = () => {
   if (automationType.value === "invitation") {
     automationDays.value = "7";
     automationReply.checked = true;
-    automationSubject.value = `Invitasjon: ${currentEvent?.title || ""}`;
+    automationEmailSubject.value = `Invitasjon: ${currentEvent?.title || ""}`;
   } else if (automationType.value === "pending_reminder") {
     automationDays.value = "2";
     automationReply.checked = true;
-    automationSubject.value = `Påminnelse: ${currentEvent?.title || ""}`;
+    automationEmailSubject.value = `Påminnelse: ${currentEvent?.title || ""}`;
   } else {
     automationDays.value = "1";
     automationReply.checked = false;
-    automationSubject.value = `Husk: ${currentEvent?.title || ""}`;
+    automationEmailSubject.value = `Husk: ${currentEvent?.title || ""}`;
   }
 };
+
+automationTargetType.onchange = updateAutomationTargetSummary;
+automationTargetRole.onchange = updateAutomationTargetSummary;
+automationTargetGroup.onchange = updateAutomationTargetSummary;
+automationChannel.onchange = updateAutomationChannelFields;
 
 automationForm.onsubmit = async e => {
   e.preventDefault();
 
-  const msg = automationMessage.value.trim();
-  if (!msg) return announce("Meldingsteksten mangler.");
+  if (automationTargetType.value === "role" && !automationTargetRole.value)
+    return announce("Velg en rolle for målgruppen.");
+
+  if (automationTargetType.value === "group" && !automationTargetGroup.value)
+    return announce("Velg en gruppe eller et utvalg for målgruppen.");
+
+  const channel = automationChannel.value;
+  const smsMessage = automationSmsMessage.value.trim();
+  const emailSubject = automationEmailSubject.value.trim();
+  const emailMessage = automationEmailMessage.value.trim();
+
+  if ((channel === "sms" || channel === "both") && !smsMessage)
+    return announce("SMS-teksten mangler.");
+
+  if ((channel === "email" || channel === "both") && !emailSubject)
+    return announce("E-postemnet mangler.");
+
+  if ((channel === "email" || channel === "both") && !emailMessage)
+    return announce("E-postmeldingen mangler.");
+
+  const selected = automationTargetPeople();
+  if (!selected.length)
+    return announce("Den valgte målgruppen inneholder ingen personer.");
+
+  let label = "Alle aktive personer";
+  if (automationTargetType.value === "role")
+    label = "rollen " + (roles.find(r=>r.id===automationTargetRole.value)?.name || "");
+  if (automationTargetType.value === "group")
+    label = "gruppen " + (groups.find(g=>g.id===automationTargetGroup.value)?.name || "");
+
+  if (!confirm(`Lagre automatisk utsendelse til ${label}, ${selected.length} person(er)?`))
+    return;
 
   const {error} = await sb.from("event_automation_rules").upsert({
     event_id:eventId,
     rule_type:automationType.value,
+    target_type:automationTargetType.value,
+    target_role_id:automationTargetType.value === "role" ? automationTargetRole.value : null,
+    target_group_id:automationTargetType.value === "group" ? automationTargetGroup.value : null,
     days_before:Number(automationDays.value),
     send_hour:Number(automationHour.value),
-    channel:automationChannel.value,
-    sms_reply:automationReply.checked,
-    subject:automationSubject.value.trim() || null,
-    message:msg,
+    channel,
+    sms_reply:automationReply.checked && channel !== "email",
+    sms_message:smsMessage || null,
+    email_subject:emailSubject || null,
+    email_message:emailMessage || null,
+    subject:emailSubject || null,
+    message:smsMessage || emailMessage || "",
     enabled:true,
     last_sent_at:null
   }, {
@@ -996,6 +1159,7 @@ audienceMode.onchange = updateAudience;
 audienceRole.onchange = updateAudience;
 audiencePerson.onchange = updateAudience;
 audienceFunction.onchange = updateAudience;
+audienceGroup.onchange = updateAudience;
 
 fillSuggestionBtn.onclick = fillSuggestion;
 testCommunicationBtn.onclick = () => sendCommunication(true);

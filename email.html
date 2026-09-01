@@ -18,6 +18,8 @@
 <nav aria-label="Hovedmeny">
   <a href="members.html">Medlemmer</a>
 <a href="events.html">Arrangementer</a>
+<a href="groups.html">Grupper og utvalg</a>
+<a href="roles.html">Roller</a>
   <a href="new-person.html">Legg til person</a>
   <a href="sms.html">SMS</a>
   <a href="email.html" aria-current="page">E-post</a>
@@ -43,6 +45,7 @@
   <option value="all">Alle aktive personer med e-postadresse</option>
   <option value="role">Aktive personer med valgt rolle</option>
   <option value="person">Én person fra medlemsregisteret</option>
+  <option value="group">Gruppe eller utvalg</option>
 </select>
 </p>
 
@@ -53,12 +56,17 @@
 
 <p id="roleWrap" hidden>
 <label for="roleSelect">Rolle</label><br>
-<select id="roleSelect"></select>
+<select id="roleSelect"><option value="">Ingen valgt</option></select>
 </p>
 
 <p id="personWrap" hidden>
 <label for="personSelect">Person</label><br>
-<select id="personSelect"></select>
+<select id="personSelect"><option value="">Ingen valgt</option></select>
+</p>
+
+<p id="groupWrap" hidden>
+<label for="groupSelect">Gruppe eller utvalg</label><br>
+<select id="groupSelect"><option value="">Ingen valgt</option></select>
 </p>
 
 <p id="selectedRecipient" class="status" role="status" aria-live="polite">
@@ -130,6 +138,7 @@ let me = null;
 let authUser = null;
 let persons = [];
 let roles = [];
+let groups = [];
 let recipientCache = [];
 
 function escapeHtml(v) {
@@ -163,12 +172,24 @@ async function loadReferenceData() {
   if (re) throw re;
   roles = r || [];
 
-  roleSelect.innerHTML = roles
+  const {data:g,error:ge}=await sb
+    .from("groups")
+    .select("id,name,active,group_members(person_id)")
+    .eq("active",true)
+    .order("name");
+  if(ge) throw ge;
+  groups=g||[];
+
+  roleSelect.innerHTML = `<option value="">Ingen valgt</option>` + roles
     .map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`)
     .join("");
 
-  personSelect.innerHTML = persons
+  personSelect.innerHTML = `<option value="">Ingen valgt</option>` + persons
     .map(p => `<option value="${p.id}">${escapeHtml(p.full_name)}${p.email ? " – " + escapeHtml(p.email) : " – mangler e-post"}</option>`)
+    .join("");
+
+  groupSelect.innerHTML = `<option value="">Ingen valgt</option>` + groups
+    .map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`)
     .join("");
 }
 
@@ -208,6 +229,16 @@ function currentRecipients() {
           pr.is_active && pr.roles?.id === rid
         )
       )
+      .map(p => ({
+        email: p.email.trim().toLowerCase(),
+        personId: p.id,
+        name: p.full_name
+      }));
+  } else if (mode === "group") {
+    const g = groups.find(x => x.id === groupSelect.value);
+    const ids = new Set((g?.group_members || []).map(m => m.person_id));
+    chosen = persons
+      .filter(p => ids.has(p.id) && validEmail(p.email))
       .map(p => ({
         email: p.email.trim().toLowerCase(),
         personId: p.id,
@@ -253,6 +284,13 @@ function updateRecipientSummary() {
     selectedRecipient.textContent = p
       ? `Valgt person: ${p.full_name}${p.email ? " – " + p.email : " – mangler e-postadresse"}.`
       : "Ingen person valgt.";
+  } else if (recipientMode.value === "group") {
+    const g = groups.find(x => x.id === groupSelect.value);
+    const ids = new Set((g?.group_members || []).map(m => m.person_id));
+    missing = persons.filter(p => ids.has(p.id) && !validEmail(p.email)).length;
+    selectedRecipient.textContent = g
+      ? `Valgt gruppe: ${g.name}.`
+      : "Ingen gruppe valgt.";
   } else {
     const email = manualEmail.value.trim();
     selectedRecipient.textContent = email
@@ -269,6 +307,7 @@ function toggleRecipientFields() {
   manualWrap.hidden = recipientMode.value !== "manual";
   roleWrap.hidden = recipientMode.value !== "role";
   personWrap.hidden = recipientMode.value !== "person";
+  groupWrap.hidden = recipientMode.value !== "group";
   updateRecipientSummary();
 }
 

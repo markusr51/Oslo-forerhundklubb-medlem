@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roller – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header><h1>Roller</h1></header>
+<nav aria-label="Hovedmeny">
+<a href="members.html">Medlemmer</a>
+<a href="events.html">Arrangementer</a>
+<a href="groups.html">Grupper og utvalg</a>
+<a href="roles.html" aria-current="page">Roller</a>
+<a href="sms.html">SMS</a>
+<a href="email.html">E-post</a>
+<button type="button" onclick="logout()">Logg ut</button>
+</nav>
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster roller …</p>
+
+<section aria-labelledby="assignHeading">
+<h2 id="assignHeading">Tildel rolle til person</h2>
+<form id="assignForm">
+<p>
+<label for="personSelect">Person</label><br>
+<select id="personSelect"><option value="">Ingen valgt</option></select>
+</p>
+<p id="personStatus" class="status" role="status" aria-live="polite">Ingen person valgt.</p>
+<p>
+<label for="roleSelect">Rolle</label><br>
+<select id="roleSelect"><option value="">Ingen valgt</option></select>
+</p>
+<button type="submit">Legg til rolle</button>
+</form>
+</section>
+
+<section aria-labelledby="currentHeading">
+<h2 id="currentHeading">Personer og roller</h2>
+<table>
+<caption>Aktive roller per person</caption>
+<thead><tr><th>Person</th><th>Rolle</th><th>Handling</th></tr></thead>
+<tbody id="roleRows"></tbody>
+</table>
+</section>
+</main>
+
+<script>
+let people = [];
+let roles = [];
+let assignments = [];
+
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+async function loadAll() {
+  let r = await sb.from("persons").select("id,full_name").order("full_name");
+  if (r.error) throw r.error;
+  people = r.data || [];
+
+  r = await sb.from("roles").select("id,name").order("name");
+  if (r.error) throw r.error;
+  roles = r.data || [];
+
+  r = await sb
+    .from("person_roles")
+    .select("id,person_id,role_id,is_active,persons(full_name),roles(name)")
+    .eq("is_active",true)
+    .order("person_id");
+  if (r.error) throw r.error;
+  assignments = r.data || [];
+
+  personSelect.innerHTML = `<option value="">Ingen valgt</option>` +
+    people.map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
+
+  roleSelect.innerHTML = `<option value="">Ingen valgt</option>` +
+    roles.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
+
+  roleRows.innerHTML = assignments.map(a=>`
+    <tr>
+      <td>${esc(a.persons?.full_name || "")}</td>
+      <td>${esc(a.roles?.name || "")}</td>
+      <td><button type="button" data-remove-role="${a.id}">Fjern rolle</button></td>
+    </tr>
+  `).join("") || `<tr><td colspan="3">Ingen aktive rolletildelinger.</td></tr>`;
+
+  roleRows.querySelectorAll("[data-remove-role]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      if (!confirm("Fjerne denne rollen fra personen?")) return;
+      const {error} = await sb.from("person_roles")
+        .update({is_active:false})
+        .eq("id",btn.dataset.removeRole);
+      if (error) return announce("Kunne ikke fjerne rollen: " + error.message);
+      await loadAll();
+      announce("Rollen er fjernet.");
+    };
+  });
+}
+
+personSelect.onchange = ()=>{
+  const p = people.find(x=>x.id===personSelect.value);
+  personStatus.textContent = p ? `Valgt person: ${p.full_name}.` : "Ingen person valgt.";
+};
+
+assignForm.onsubmit = async e=>{
+  e.preventDefault();
+  if (!personSelect.value) return announce("Velg en person.");
+  if (!roleSelect.value) return announce("Velg en rolle.");
+
+  const existing = assignments.find(a =>
+    a.person_id === personSelect.value && a.role_id === roleSelect.value
+  );
+
+  if (existing) {
+    announce("Personen har allerede denne rollen.");
+    return;
+  }
+
+  const {data:inactive} = await sb.from("person_roles")
+    .select("id")
+    .eq("person_id",personSelect.value)
+    .eq("role_id",roleSelect.value)
+    .eq("is_active",false)
+    .maybeSingle();
+
+  let error = null;
+  if (inactive?.id) {
+    ({error} = await sb.from("person_roles")
+      .update({is_active:true})
+      .eq("id",inactive.id));
+  } else {
+    ({error} = await sb.from("person_roles").insert({
+      person_id:personSelect.value,
+      role_id:roleSelect.value,
+      is_active:true
+    }));
+  }
+
+  if (error) return announce("Kunne ikke legge til rollen: " + error.message);
+
+  personSelect.value = "";
+  roleSelect.value = "";
+  personStatus.textContent = "Ingen person valgt.";
+  await loadAll();
+  announce("Rollen er lagt til.");
+};
+
+(async()=>{
+  try {
+    await requireSession();
+    await loadAll();
+    announce("Roller er klare.");
+  } catch(e) {
+    console.error(e);
+    announce("Kunne ikke laste roller: " + (e?.message || String(e)));
+  }
+})();
+</script>
+</body>
+</html>

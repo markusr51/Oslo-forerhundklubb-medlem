@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grupper og utvalg – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header><img src="logo.png" alt="Oslo Førerhundklubb"><h1>Grupper og utvalg</h1></header>
+
+<nav aria-label="Hovedmeny">
+<a href="members.html">Medlemmer</a>
+<a href="events.html">Arrangementer</a>
+<a href="groups.html" aria-current="page">Grupper og utvalg</a>
+<a href="roles.html">Roller</a>
+<a href="new-person.html">Legg til person</a>
+<a href="sms.html">SMS</a>
+<a href="email.html">E-post</a>
+<a href="admins.html">Brukere og tilganger</a>
+<a href="history.html">Endringshistorikk</a>
+<button type="button" onclick="logout()">Logg ut</button>
+</nav>
+
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster grupper …</p>
+
+<section aria-labelledby="newGroupHeading">
+<h2 id="newGroupHeading">Opprett gruppe eller utvalg</h2>
+<form id="groupForm">
+<p>
+<label for="groupName">Navn</label><br>
+<input id="groupName" type="text" maxlength="150" required placeholder="For eksempel Styret">
+</p>
+<p>
+<label for="groupDescription">Beskrivelse</label><br>
+<textarea id="groupDescription" rows="4" maxlength="1000"></textarea>
+</p>
+<button type="submit">Opprett gruppe</button>
+</form>
+</section>
+
+<section aria-labelledby="groupListHeading">
+<h2 id="groupListHeading">Eksisterende grupper og utvalg</h2>
+<p id="groupCount"></p>
+<div id="groupList"></div>
+</section>
+</main>
+
+<script>
+let me = null;
+let groups = [];
+let people = [];
+
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function csvEscape(v) {
+  return `"${String(v ?? "").replace(/"/g,'""')}"`;
+}
+
+async function loadPeople() {
+  const {data,error} = await sb
+    .from("persons")
+    .select("id,full_name,email,phone,membership_status")
+    .order("full_name");
+  if (error) throw error;
+  people = data || [];
+}
+
+async function loadGroups() {
+  const {data,error} = await sb
+    .from("groups")
+    .select("id,name,description,active,group_members(id,person_id,note,persons(full_name,email,phone,membership_status))")
+    .order("name");
+
+  if (error) {
+    announce("Kunne ikke laste grupper: " + error.message);
+    return;
+  }
+
+  groups = data || [];
+  groupCount.textContent = `${groups.length} grupper/utvalg.`;
+
+  groupList.innerHTML = groups.map(g => {
+    const members = (g.group_members || [])
+      .slice()
+      .sort((a,b) => String(a.persons?.full_name || "").localeCompare(String(b.persons?.full_name || ""), "nb"));
+
+    const options = people
+      .filter(p => !members.some(m => m.person_id === p.id))
+      .map(p => `<option value="${p.id}">${esc(p.full_name)}</option>`)
+      .join("");
+
+    const rows = members.map(m => `
+      <tr>
+        <td>${esc(m.persons?.full_name || "")}</td>
+        <td>${esc(m.persons?.phone || "")}</td>
+        <td>${esc(m.persons?.email || "")}</td>
+        <td>${esc(m.note || "")}</td>
+        <td><button type="button" data-remove-member="${m.id}">Fjern fra utvalget</button></td>
+      </tr>
+    `).join("") || `<tr><td colspan="5">Ingen personer i gruppen ennå.</td></tr>`;
+
+    return `
+      <article class="group-card" data-group-card="${g.id}">
+        <h3>${esc(g.name)}</h3>
+        <p>${esc(g.description || "Ingen beskrivelse.")}</p>
+        <p>Status: ${g.active ? "Aktiv" : "Deaktivert"}. ${members.length} personer.</p>
+
+        <details>
+          <summary>Administrer ${esc(g.name)}</summary>
+
+          <h4>Legg til person</h4>
+          <form data-add-form="${g.id}">
+            <p>
+              <label for="person-${g.id}">Person</label><br>
+              <select id="person-${g.id}" data-person-select="${g.id}">
+                <option value="">Ingen valgt</option>
+                ${options}
+              </select>
+            </p>
+            <p data-selected-person-status="${g.id}" class="status" role="status" aria-live="polite">Ingen person valgt.</p>
+            <p>
+              <label for="member-note-${g.id}">Notat om personens rolle i utvalget</label><br>
+              <input id="member-note-${g.id}" data-member-note="${g.id}" type="text" maxlength="500">
+            </p>
+            <button type="submit">Legg til person i ${esc(g.name)}</button>
+          </form>
+
+          <h4>Personer i ${esc(g.name)}</h4>
+          <table>
+            <caption>${esc(g.name)} – personer</caption>
+            <thead><tr><th>Navn</th><th>Telefon</th><th>E-post</th><th>Notat</th><th>Handling</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+
+          <p><button type="button" data-export-group="${g.id}">Eksporter gruppeliste som CSV for Excel</button></p>
+
+          <h4>Rediger gruppe</h4>
+          <form data-edit-form="${g.id}">
+            <p>
+              <label for="edit-name-${g.id}">Navn</label><br>
+              <input id="edit-name-${g.id}" data-edit-name="${g.id}" type="text" maxlength="150" value="${esc(g.name)}" required>
+            </p>
+            <p>
+              <label for="edit-desc-${g.id}">Beskrivelse</label><br>
+              <textarea id="edit-desc-${g.id}" data-edit-desc="${g.id}" rows="3" maxlength="1000">${esc(g.description || "")}</textarea>
+            </p>
+            <p><label><input data-edit-active="${g.id}" type="checkbox" ${g.active ? "checked" : ""}> Aktiv gruppe</label></p>
+            <button type="submit">Lagre gruppe</button>
+          </form>
+
+          <p><button type="button" data-delete-group="${g.id}">Slett gruppen permanent</button></p>
+        </details>
+      </article>
+    `;
+  }).join("") || "<p>Ingen grupper er opprettet ennå.</p>";
+
+  groupList.querySelectorAll("[data-person-select]").forEach(sel => {
+    sel.addEventListener("change", () => {
+      const p = people.find(x => x.id === sel.value);
+      const out = groupList.querySelector(`[data-selected-person-status="${sel.dataset.personSelect}"]`);
+      if (out) out.textContent = p ? `Valgt person: ${p.full_name}.` : "Ingen person valgt.";
+    });
+  });
+
+  groupList.querySelectorAll("[data-add-form]").forEach(form => {
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const gid = form.dataset.addForm;
+      const sel = groupList.querySelector(`[data-person-select="${gid}"]`);
+      const note = groupList.querySelector(`[data-member-note="${gid}"]`);
+
+      if (!sel?.value) {
+        announce("Velg en person først.");
+        sel?.focus();
+        return;
+      }
+
+      const {error} = await sb.from("group_members").insert({
+        group_id: gid,
+        person_id: sel.value,
+        note: note?.value.trim() || null
+      });
+
+      if (error) {
+        announce("Kunne ikke legge til personen: " + error.message);
+        return;
+      }
+
+      announce("Personen er lagt til i gruppen.");
+      await loadGroups();
+    });
+  });
+
+  groupList.querySelectorAll("[data-remove-member]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Fjerne personen fra denne gruppen? Personen slettes ikke fra medlemsregisteret.")) return;
+      const {error} = await sb.from("group_members").delete().eq("id",btn.dataset.removeMember);
+      if (error) return announce("Kunne ikke fjerne personen: " + error.message);
+      announce("Personen er fjernet fra gruppen.");
+      await loadGroups();
+    });
+  });
+
+  groupList.querySelectorAll("[data-edit-form]").forEach(form => {
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const gid = form.dataset.editForm;
+      const name = groupList.querySelector(`[data-edit-name="${gid}"]`)?.value.trim();
+      const desc = groupList.querySelector(`[data-edit-desc="${gid}"]`)?.value.trim();
+      const active = groupList.querySelector(`[data-edit-active="${gid}"]`)?.checked === true;
+
+      if (!name) return announce("Gruppen må ha et navn.");
+
+      const {error} = await sb.from("groups").update({
+        name,
+        description: desc || null,
+        active
+      }).eq("id",gid);
+
+      if (error) return announce("Kunne ikke lagre gruppen: " + error.message);
+      announce("Gruppen er oppdatert.");
+      await loadGroups();
+    });
+  });
+
+  groupList.querySelectorAll("[data-delete-group]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const g = groups.find(x => x.id === btn.dataset.deleteGroup);
+      if (!confirm(`Slette gruppen «${g?.name || ""}» permanent? Personene i medlemsregisteret slettes ikke.`)) return;
+      const {error} = await sb.from("groups").delete().eq("id",btn.dataset.deleteGroup);
+      if (error) return announce("Kunne ikke slette gruppen: " + error.message);
+      announce("Gruppen er slettet.");
+      await loadGroups();
+    });
+  });
+
+  groupList.querySelectorAll("[data-export-group]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const g = groups.find(x => x.id === btn.dataset.exportGroup);
+      if (!g) return;
+
+      const rows = (g.group_members || []).map(m => [
+        m.persons?.full_name || "",
+        m.persons?.phone || "",
+        m.persons?.email || "",
+        m.note || ""
+      ]);
+
+      const lines = [
+        ["Navn","Telefon","E-post","Notat"].map(csvEscape).join(";"),
+        ...rows.map(r => r.map(csvEscape).join(";"))
+      ];
+
+      const blob = new Blob(["\uFEFF" + lines.join("\r\n")], {type:"text/csv;charset=utf-8"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${g.name.replace(/[^\p{L}\p{N}_-]+/gu,"_")}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      const href = a.href;
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(href),1000);
+      announce("Gruppelisten er eksportert.");
+    });
+  });
+}
+
+groupForm.addEventListener("submit", async e => {
+  e.preventDefault();
+
+  const name = groupName.value.trim();
+  if (!name) return announce("Skriv inn et gruppenavn.");
+
+  const {error} = await sb.from("groups").insert({
+    name,
+    description: groupDescription.value.trim() || null
+  });
+
+  if (error) {
+    announce("Kunne ikke opprette gruppen: " + error.message);
+    return;
+  }
+
+  groupName.value = "";
+  groupDescription.value = "";
+  announce("Gruppen er opprettet.");
+  await loadGroups();
+});
+
+(async () => {
+  try {
+    await requireSession();
+    me = await getCurrentAppUser();
+    await loadPeople();
+    await loadGroups();
+    announce("Grupper og utvalg er klare.");
+  } catch (e) {
+    console.error(e);
+    announce("Kunne ikke laste grupper og utvalg: " + (e?.message || String(e)));
+  }
+})();
+</script>
+</body>
+</html>

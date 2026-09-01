@@ -14,6 +14,8 @@
 <nav aria-label="Hovedmeny">
 <a href="members.html">Medlemmer</a>
 <a href="events.html">Arrangementer</a>
+<a href="groups.html">Grupper og utvalg</a>
+<a href="roles.html">Roller</a>
 <a href="new-person.html">Legg til person</a>
 <a href="sms.html" aria-current="page">SMS</a>
 <a href="email.html">E-post</a>
@@ -39,6 +41,7 @@
 <option value="all">Alle aktive personer med mobilnummer</option>
 <option value="role">Aktive personer med valgt rolle</option>
 <option value="person">Én person fra medlemsregisteret</option>
+<option value="group">Gruppe eller utvalg</option>
 </select>
 </p>
 
@@ -49,12 +52,17 @@
 
 <p id="roleWrap" hidden>
 <label for="roleSelect">Rolle</label><br>
-<select id="roleSelect"></select>
+<select id="roleSelect"><option value="">Ingen valgt</option></select>
 </p>
 
 <p id="personWrap" hidden>
 <label for="personSelect">Person</label><br>
-<select id="personSelect"></select>
+<select id="personSelect"><option value="">Ingen valgt</option></select>
+</p>
+
+<p id="groupWrap" hidden>
+<label for="groupSelect">Gruppe eller utvalg</label><br>
+<select id="groupSelect"><option value="">Ingen valgt</option></select>
 </p>
 
 <p id="recipientSummary" role="status" aria-live="polite">
@@ -103,7 +111,7 @@ Svarbar SMS via Sveves svarnummer</label></p>
 </main>
 
 <script>
-let me=null, persons=[], roles=[], recipientCache=[];
+let me=null, persons=[], roles=[], groups=[], recipientCache=[];
 
 function selectedReplyMode() {
   return document.querySelector('input[name="smsType"]:checked')?.value === "reply";
@@ -132,8 +140,17 @@ async function loadReferenceData() {
   if(re) throw re;
   roles=r||[];
 
-  roleSelect.innerHTML=roles.map(r=>`<option value="${r.id}">${escapeHtml(r.name)}</option>`).join("");
-  personSelect.innerHTML=persons.map(p=>`<option value="${p.id}">${escapeHtml(p.full_name)}${p.phone ? " – "+escapeHtml(p.phone) : " – mangler telefon"}</option>`).join("");
+  const {data:g,error:ge}=await sb
+    .from("groups")
+    .select("id,name,active,group_members(person_id)")
+    .eq("active",true)
+    .order("name");
+  if(ge) throw ge;
+  groups=g||[];
+
+  roleSelect.innerHTML=`<option value="">Ingen valgt</option>`+roles.map(r=>`<option value="${r.id}">${escapeHtml(r.name)}</option>`).join("");
+  personSelect.innerHTML=`<option value="">Ingen valgt</option>`+persons.map(p=>`<option value="${p.id}">${escapeHtml(p.full_name)}${p.phone ? " – "+escapeHtml(p.phone) : " – mangler telefon"}</option>`).join("");
+  groupSelect.innerHTML=`<option value="">Ingen valgt</option>`+groups.map(g=>`<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("");
 }
 
 function currentRecipients() {
@@ -156,6 +173,12 @@ function currentRecipients() {
       .filter(p=>p.membership_status==="active" && normalizePhone(p.phone) &&
         (p.person_roles||[]).some(pr=>pr.is_active && pr.roles?.id===rid))
       .map(p=>({phone:normalizePhone(p.phone),personId:p.id,name:p.full_name}));
+  } else if(mode==="group") {
+    const g=groups.find(x=>x.id===groupSelect.value);
+    const ids=new Set((g?.group_members||[]).map(m=>m.person_id));
+    chosen=persons
+      .filter(p=>ids.has(p.id) && normalizePhone(p.phone))
+      .map(p=>({phone:normalizePhone(p.phone),personId:p.id,name:p.full_name}));
   }
 
   const seen=new Set();
@@ -176,6 +199,10 @@ function updateRecipientSummary() {
     missing=persons.filter(p=>p.membership_status==="active" &&
       (p.person_roles||[]).some(pr=>pr.is_active && pr.roles?.id===rid) &&
       !normalizePhone(p.phone)).length;
+  } else if(recipientMode.value==="group") {
+    const g=groups.find(x=>x.id===groupSelect.value);
+    const ids=new Set((g?.group_members||[]).map(m=>m.person_id));
+    missing=persons.filter(p=>ids.has(p.id) && !normalizePhone(p.phone)).length;
   }
 
   recipientSummary.textContent =
@@ -187,6 +214,7 @@ function toggleRecipientFields() {
   manualWrap.hidden=recipientMode.value!=="manual";
   roleWrap.hidden=recipientMode.value!=="role";
   personWrap.hidden=recipientMode.value!=="person";
+  groupWrap.hidden=recipientMode.value!=="group";
   updateRecipientSummary();
 }
 
@@ -276,6 +304,7 @@ async function loadReplies() {
 
 recipientMode.addEventListener("change",toggleRecipientFields);
 roleSelect.addEventListener("change",updateRecipientSummary);
+groupSelect.addEventListener("change",updateRecipientSummary);
 personSelect.addEventListener("change",updateRecipientSummary);
 manualPhone.addEventListener("input",updateRecipientSummary);
 previewBtn.addEventListener("click",updateRecipientSummary);
