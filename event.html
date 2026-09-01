@@ -216,6 +216,56 @@
 </table>
 </section>
 
+
+<section aria-labelledby="documentsHeading">
+<h2 id="documentsHeading">Dokumentarkiv</h2>
+<p>Filer her er private og tilgjengelige for innloggede administratorer/arrangører.</p>
+
+<form id="documentForm">
+<p>
+<label for="documentFile">Velg fil</label><br>
+<input id="documentFile" type="file" required>
+</p>
+
+<p>
+<label for="documentType">Dokumenttype</label><br>
+<select id="documentType">
+<option value="program">Program</option>
+<option value="invitation">Invitasjon</option>
+<option value="practical">Praktisk informasjon</option>
+<option value="meeting_papers">Sakspapirer</option>
+<option value="other">Annet</option>
+</select>
+</p>
+
+<p>
+<label for="documentDescription">Beskrivelse</label><br>
+<input id="documentDescription" type="text" maxlength="500">
+</p>
+
+<button type="submit">Last opp dokument</button>
+</form>
+
+<p id="documentStatus" class="status" role="status" aria-live="polite">
+Ingen opplasting pågår.
+</p>
+
+<table>
+<caption>Dokumenter lagret på arrangementet</caption>
+<thead>
+<tr>
+<th>Dokument</th>
+<th>Type</th>
+<th>Beskrivelse</th>
+<th>Størrelse</th>
+<th>Lastet opp</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody id="documentRows"></tbody>
+</table>
+</section>
+
 <section aria-labelledby="notesHeading">
 <h2 id="notesHeading">Interne notater</h2>
 <p>Notatene er bare for innloggede administratorer/arrangører og sendes ikke ut.</p>
@@ -611,6 +661,7 @@ async function loadNotes() {
       const {error} = await sb.from("event_notes").delete().eq("id",btn.dataset.noteDelete);
       if (error) return announce("Kunne ikke slette notatet: " + error.message);
       await loadNotes();
+    await loadDocuments();
       announce("Notatet er slettet.");
     };
   });
@@ -939,6 +990,205 @@ async function loadAutomationRules() {
     };
   });
 }
+
+
+function documentTypeText(v) {
+  return ({
+    program:"Program",
+    invitation:"Invitasjon",
+    practical:"Praktisk informasjon",
+    meeting_papers:"Sakspapirer",
+    other:"Annet"
+  })[v] || v;
+}
+
+function humanFileSize(bytes) {
+  const n = Number(bytes || 0);
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function safeStorageName(filename) {
+  const parts = String(filename || "fil").split(".");
+  const ext = parts.length > 1
+    ? "." + parts.pop().replace(/[^a-zA-Z0-9]/g,"").slice(0,12)
+    : "";
+
+  const base = parts.join(".")
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g,"_")
+    .replace(/^_+|_+$/g,"")
+    .slice(0,100) || "fil";
+
+  return base + ext;
+}
+
+async function loadDocuments() {
+  const {data,error} = await sb
+    .from("event_documents")
+    .select("id,storage_path,original_name,document_type,description,mime_type,size_bytes,created_at")
+    .eq("event_id",eventId)
+    .order("created_at",{ascending:false});
+
+  if (error) {
+    documentRows.innerHTML =
+      `<tr><td colspan="6">${esc(error.message)}</td></tr>`;
+    return;
+  }
+
+  documentRows.innerHTML = (data || []).map(d => `
+    <tr>
+      <td>${esc(d.original_name)}</td>
+      <td>${esc(documentTypeText(d.document_type))}</td>
+      <td>${esc(d.description || "")}</td>
+      <td>${esc(humanFileSize(d.size_bytes))}</td>
+      <td>${esc(new Date(d.created_at).toLocaleString("nb-NO"))}</td>
+      <td>
+        <button type="button"
+          data-document-download="${d.id}"
+          data-document-path="${esc(d.storage_path)}"
+          data-document-name="${esc(d.original_name)}">
+          Last ned
+        </button>
+        <button type="button"
+          data-document-delete="${d.id}"
+          data-document-delete-path="${esc(d.storage_path)}">
+          Slett
+        </button>
+      </td>
+    </tr>
+  `).join("") ||
+    `<tr><td colspan="6">Ingen dokumenter er lastet opp ennå.</td></tr>`;
+
+  documentRows.querySelectorAll("[data-document-download]").forEach(btn => {
+    btn.onclick = async () => {
+      documentStatus.textContent = "Oppretter sikker nedlastingslenke …";
+
+      const {data,error} = await sb.storage
+        .from("event-documents")
+        .createSignedUrl(btn.dataset.documentPath, 60);
+
+      if (error || !data?.signedUrl) {
+        documentStatus.textContent =
+          "Kunne ikke laste ned dokumentet: " + (error?.message || "ukjent feil");
+        return;
+      }
+
+      const a = document.createElement("a");
+      a.href = data.signedUrl;
+      a.download = btn.dataset.documentName || "dokument";
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      documentStatus.textContent =
+        `Nedlasting startet: ${btn.dataset.documentName || "dokument"}.`;
+    };
+  });
+
+  documentRows.querySelectorAll("[data-document-delete]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Slette dette dokumentet permanent fra arrangementet?")) return;
+
+      documentStatus.textContent = "Sletter dokument …";
+
+      const path = btn.dataset.documentDeletePath;
+
+      const {error:storageError} = await sb.storage
+        .from("event-documents")
+        .remove([path]);
+
+      if (storageError) {
+        documentStatus.textContent =
+          "Kunne ikke slette filen fra lagringen: " + storageError.message;
+        return;
+      }
+
+      const {error:dbError} = await sb
+        .from("event_documents")
+        .delete()
+        .eq("id",btn.dataset.documentDelete);
+
+      if (dbError) {
+        documentStatus.textContent =
+          "Filen ble slettet, men metadata kunne ikke fjernes: " + dbError.message;
+        return;
+      }
+
+      documentStatus.textContent = "Dokumentet er slettet.";
+      await loadDocuments();
+    };
+  });
+}
+
+documentForm.onsubmit = async e => {
+  e.preventDefault();
+
+  const file = documentFile.files?.[0];
+  if (!file) {
+    announce("Velg en fil først.");
+    documentFile.focus();
+    return;
+  }
+
+  if (file.size > 25 * 1024 * 1024) {
+    announce("Filen er større enn maksgrensen på 25 MB.");
+    return;
+  }
+
+  documentStatus.textContent =
+    `Laster opp ${file.name} …`;
+
+  const storagePath =
+    `${eventId}/${crypto.randomUUID()}-${safeStorageName(file.name)}`;
+
+  const {error:uploadError} = await sb.storage
+    .from("event-documents")
+    .upload(storagePath,file,{
+      contentType:file.type || "application/octet-stream",
+      upsert:false
+    });
+
+  if (uploadError) {
+    documentStatus.textContent =
+      "Opplastingen feilet: " + uploadError.message;
+    return;
+  }
+
+  const {data:{user}} = await sb.auth.getUser();
+
+  const {error:metaError} = await sb
+    .from("event_documents")
+    .insert({
+      event_id:eventId,
+      storage_path:storagePath,
+      original_name:file.name,
+      document_type:documentType.value,
+      description:documentDescription.value.trim() || null,
+      mime_type:file.type || null,
+      size_bytes:file.size,
+      uploaded_by:user?.id || null
+    });
+
+  if (metaError) {
+    await sb.storage
+      .from("event-documents")
+      .remove([storagePath]);
+
+    documentStatus.textContent =
+      "Metadata kunne ikke lagres, og filen ble fjernet igjen: " + metaError.message;
+    return;
+  }
+
+  documentForm.reset();
+  documentStatus.textContent =
+    `Dokumentet ${file.name} er lastet opp.`;
+
+  await loadDocuments();
+};
+
 
 async function loadReplies() {
   const {data,error} = await sb
