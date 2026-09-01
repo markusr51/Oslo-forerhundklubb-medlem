@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dokumentbibliotek – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header><h1>Dokumentbibliotek</h1></header>
+
+<nav aria-label="Hovedmeny">
+<a href="members.html">Medlemmer</a>
+<a href="events.html">Arrangementer</a>
+<a href="groups.html">Grupper og utvalg</a>
+<a href="roles.html">Roller</a>
+<a href="library.html" aria-current="page">Dokumentbibliotek</a>
+<a href="sms.html">SMS</a>
+<a href="email.html">E-post</a>
+<button type="button" onclick="logout()">Logg ut</button>
+</nav>
+
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster dokumentbibliotek …</p>
+
+<section id="adminSection" hidden aria-labelledby="adminHeading">
+<h2 id="adminHeading">Administrer bibliotek</h2>
+
+<h3>Opprett mappe</h3>
+<form id="folderForm">
+<p>
+<label for="folderParent">Overordnet mappe</label><br>
+<select id="folderParent"><option value="">Rotnivå</option></select>
+</p>
+<p>
+<label for="folderName">Mappenavn</label><br>
+<input id="folderName" type="text" maxlength="150" required>
+</p>
+<p>
+<label for="folderDescription">Beskrivelse</label><br>
+<textarea id="folderDescription" rows="3" maxlength="1000"></textarea>
+</p>
+<button type="submit">Opprett mappe</button>
+</form>
+</section>
+
+<section aria-labelledby="browseHeading">
+<h2 id="browseHeading">Mapper og dokumenter</h2>
+<p id="breadcrumb"></p>
+<p><button id="upBtn" type="button" hidden>Gå til overordnet mappe</button></p>
+
+<div id="folderList"></div>
+
+<section id="folderAdmin" hidden aria-labelledby="folderAdminHeading">
+<h3 id="folderAdminHeading">Administrer denne mappen</h3>
+
+<form id="renameFolderForm">
+<p>
+<label for="renameFolderName">Mappenavn</label><br>
+<input id="renameFolderName" type="text" maxlength="150">
+</p>
+<p>
+<label for="renameFolderDescription">Beskrivelse</label><br>
+<textarea id="renameFolderDescription" rows="3" maxlength="1000"></textarea>
+</p>
+<button type="submit">Lagre mappe</button>
+<button id="deleteFolderBtn" type="button">Slett mappe</button>
+</form>
+
+<h4>Rettigheter</h4>
+<form id="permissionForm">
+<p>
+<label for="permissionSubjectType">Hvem skal ha tilgang?</label><br>
+<select id="permissionSubjectType">
+<option value="all_authenticated">Alle innloggede</option>
+<option value="role">Valgt personrolle</option>
+<option value="group">Valgt gruppe eller utvalg</option>
+<option value="app_role">Portalrolle</option>
+</select>
+</p>
+
+<p id="permissionRoleWrap" hidden>
+<label for="permissionRole">Rolle</label><br>
+<select id="permissionRole"><option value="">Ingen valgt</option></select>
+</p>
+
+<p id="permissionGroupWrap" hidden>
+<label for="permissionGroup">Gruppe eller utvalg</label><br>
+<select id="permissionGroup"><option value="">Ingen valgt</option></select>
+</p>
+
+<p id="permissionAppRoleWrap" hidden>
+<label for="permissionAppRole">Portalrolle</label><br>
+<select id="permissionAppRole">
+<option value="readonly">Vanlig portalbruker</option>
+<option value="admin">Administrator</option>
+<option value="system_admin">Systemadministrator</option>
+</select>
+</p>
+
+<fieldset>
+<legend>Rettigheter</legend>
+<p><label><input id="permRead" type="checkbox" checked> Lese og laste ned</label></p>
+<p><label><input id="permUpload" type="checkbox"> Laste opp</label></p>
+<p><label><input id="permEdit" type="checkbox"> Redigere dokumentmetadata</label></p>
+<p><label><input id="permDelete" type="checkbox"> Slette dokumenter</label></p>
+</fieldset>
+
+<button type="submit">Legg til rettighet</button>
+</form>
+
+<table>
+<caption>Rettigheter for valgt mappe</caption>
+<thead><tr><th>Hvem</th><th>Lese</th><th>Laste opp</th><th>Redigere</th><th>Slette</th><th>Handling</th></tr></thead>
+<tbody id="permissionRows"></tbody>
+</table>
+</section>
+
+<section id="uploadSection" hidden aria-labelledby="uploadHeading">
+<h3 id="uploadHeading">Last opp dokument</h3>
+<form id="uploadForm">
+<p>
+<label for="uploadFile">Fil</label><br>
+<input id="uploadFile" type="file" required>
+</p>
+<p>
+<label for="uploadDescription">Beskrivelse</label><br>
+<input id="uploadDescription" type="text" maxlength="500">
+</p>
+<button type="submit">Last opp</button>
+</form>
+</section>
+
+<h3>Dokumenter i valgt mappe</h3>
+<table>
+<caption>Dokumenter</caption>
+<thead><tr><th>Filnavn</th><th>Beskrivelse</th><th>Størrelse</th><th>Lastet opp</th><th>Handling</th></tr></thead>
+<tbody id="documentRows"></tbody>
+</table>
+</section>
+</main>
+
+<script>
+let me = null;
+let currentFolderId = null;
+let folders = [];
+let documents = [];
+let roles = [];
+let groups = [];
+let currentFolder = null;
+
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function sizeText(bytes) {
+  const n = Number(bytes || 0);
+  if (n < 1024) return `${n} B`;
+  if (n < 1048576) return `${Math.round(n/1024)} KB`;
+  return `${(n/1048576).toFixed(1)} MB`;
+}
+
+function safeName(filename) {
+  const parts = String(filename || "fil").split(".");
+  const ext = parts.length > 1 ? "." + parts.pop().replace(/[^a-zA-Z0-9]/g,"").slice(0,12) : "";
+  const base = parts.join(".")
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g,"_")
+    .replace(/^_+|_+$/g,"")
+    .slice(0,100) || "fil";
+  return base + ext;
+}
+
+function isAdmin() {
+  return me?.app_role === "admin" || me?.app_role === "system_admin";
+}
+
+function folderPath(folderId) {
+  if (!folderId) return [];
+  const result = [];
+  let cur = folders.find(f=>f.id===folderId);
+  const seen = new Set();
+
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    result.unshift(cur);
+    cur = cur.parent_id ? folders.find(f=>f.id===cur.parent_id) : null;
+  }
+  return result;
+}
+
+function permissionLabel(p) {
+  if (p.subject_type === "all_authenticated") return "Alle innloggede";
+  if (p.subject_type === "role") return "Rolle: " + (roles.find(r=>r.id===p.role_id)?.name || "ukjent");
+  if (p.subject_type === "group") return "Gruppe: " + (groups.find(g=>g.id===p.group_id)?.name || "ukjent");
+  if (p.subject_type === "app_role") return "Portalrolle: " + p.app_role;
+  return p.subject_type;
+}
+
+async function loadReferenceData() {
+  let r = await sb.from("roles").select("id,name").order("name");
+  if (!r.error) roles = r.data || [];
+
+  r = await sb.from("groups").select("id,name").eq("active",true).order("name");
+  if (!r.error) groups = r.data || [];
+
+  permissionRole.innerHTML = `<option value="">Ingen valgt</option>` +
+    roles.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
+
+  permissionGroup.innerHTML = `<option value="">Ingen valgt</option>` +
+    groups.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
+}
+
+async function loadFolders() {
+  const {data,error} = await sb
+    .from("library_folders")
+    .select("*")
+    .eq("active",true)
+    .order("sort_order")
+    .order("name");
+
+  if (error) {
+    announce("Kunne ikke laste mapper: " + error.message);
+    return;
+  }
+
+  folders = data || [];
+  currentFolder = currentFolderId ? folders.find(f=>f.id===currentFolderId) || null : null;
+
+  if (isAdmin()) {
+    folderParent.innerHTML = `<option value="">Rotnivå</option>` +
+      folders.map(f=>`<option value="${f.id}">${esc(folderPath(f.id).map(x=>x.name).join(" / "))}</option>`).join("");
+  }
+
+  renderFolders();
+}
+
+function renderFolders() {
+  const children = folders.filter(f => (f.parent_id || null) === (currentFolderId || null));
+
+  breadcrumb.textContent = currentFolderId
+    ? "Plassering: " + folderPath(currentFolderId).map(x=>x.name).join(" / ")
+    : "Plassering: Dokumentbibliotek";
+
+  upBtn.hidden = !currentFolderId;
+
+  folderList.innerHTML = children.map(f=>`
+    <article>
+      <h3><button type="button" data-open-folder="${f.id}">${esc(f.name)}</button></h3>
+      <p>${esc(f.description || "")}</p>
+    </article>
+  `).join("") || "<p>Ingen undermapper.</p>";
+
+  folderList.querySelectorAll("[data-open-folder]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      currentFolderId = btn.dataset.openFolder;
+      await refreshCurrent();
+    };
+  });
+
+  if (isAdmin()) {
+    folderAdmin.hidden = !currentFolderId;
+    if (currentFolder) {
+      renameFolderName.value = currentFolder.name || "";
+      renameFolderDescription.value = currentFolder.description || "";
+    }
+  } else {
+    folderAdmin.hidden = true;
+  }
+
+  uploadSection.hidden = !currentFolderId;
+}
+
+async function loadDocuments() {
+  if (!currentFolderId) {
+    documents = [];
+    documentRows.innerHTML = `<tr><td colspan="5">Velg en mappe for å se dokumenter.</td></tr>`;
+    return;
+  }
+
+  const {data,error} = await sb
+    .from("library_documents")
+    .select("*")
+    .eq("folder_id",currentFolderId)
+    .order("created_at",{ascending:false});
+
+  if (error) {
+    documentRows.innerHTML = `<tr><td colspan="5">${esc(error.message)}</td></tr>`;
+    return;
+  }
+
+  documents = data || [];
+
+  documentRows.innerHTML = documents.map(d=>`
+    <tr>
+      <td>${esc(d.original_name)}</td>
+      <td>${esc(d.description || "")}</td>
+      <td>${esc(sizeText(d.size_bytes))}</td>
+      <td>${esc(new Date(d.created_at).toLocaleString("nb-NO"))}</td>
+      <td>
+        <button type="button" data-download="${d.id}">Last ned</button>
+        ${isAdmin() ? `<button type="button" data-edit-document="${d.id}">Rediger</button>
+        <button type="button" data-delete-document="${d.id}">Slett</button>` : ""}
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">Ingen dokumenter i denne mappen.</td></tr>`;
+
+  documentRows.querySelectorAll("[data-download]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const d = documents.find(x=>x.id===btn.dataset.download);
+      if (!d) return;
+
+      const {data,error} = await sb.storage
+        .from("library-documents")
+        .createSignedUrl(d.storage_path,60);
+
+      if (error || !data?.signedUrl) {
+        announce("Kunne ikke laste ned: " + (error?.message || "ukjent feil"));
+        return;
+      }
+
+      const a = document.createElement("a");
+      a.href = data.signedUrl;
+      a.download = d.original_name;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      announce("Nedlasting startet: " + d.original_name);
+    };
+  });
+
+  documentRows.querySelectorAll("[data-edit-document]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const d = documents.find(x=>x.id===btn.dataset.editDocument);
+      if (!d) return;
+
+      const newName = prompt("Filnavn", d.original_name);
+      if (newName === null) return;
+
+      const desc = prompt("Beskrivelse", d.description || "");
+      if (desc === null) return;
+
+      const {error} = await sb.from("library_documents")
+        .update({
+          original_name:newName.trim() || d.original_name,
+          description:desc.trim() || null
+        })
+        .eq("id",d.id);
+
+      if (error) return announce("Kunne ikke redigere dokumentet: " + error.message);
+
+      await loadDocuments();
+      announce("Dokumentet er oppdatert.");
+    };
+  });
+
+  documentRows.querySelectorAll("[data-delete-document]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const d = documents.find(x=>x.id===btn.dataset.deleteDocument);
+      if (!d || !confirm(`Slette «${d.original_name}» permanent?`)) return;
+
+      const {error:storageError} = await sb.storage
+        .from("library-documents")
+        .remove([d.storage_path]);
+
+      if (storageError) return announce("Kunne ikke slette filen: " + storageError.message);
+
+      const {error} = await sb.from("library_documents").delete().eq("id",d.id);
+      if (error) return announce("Filen ble slettet, men metadata kunne ikke fjernes: " + error.message);
+
+      await loadDocuments();
+      announce("Dokumentet er slettet.");
+    };
+  });
+}
+
+async function loadPermissions() {
+  if (!isAdmin() || !currentFolderId) {
+    permissionRows.innerHTML = "";
+    return;
+  }
+
+  const {data,error} = await sb
+    .from("library_folder_permissions")
+    .select("*")
+    .eq("folder_id",currentFolderId)
+    .order("created_at");
+
+  if (error) {
+    permissionRows.innerHTML = `<tr><td colspan="6">${esc(error.message)}</td></tr>`;
+    return;
+  }
+
+  permissionRows.innerHTML = (data || []).map(p=>`
+    <tr>
+      <td>${esc(permissionLabel(p))}</td>
+      <td>${p.can_read ? "Ja" : "Nei"}</td>
+      <td>${p.can_upload ? "Ja" : "Nei"}</td>
+      <td>${p.can_edit ? "Ja" : "Nei"}</td>
+      <td>${p.can_delete ? "Ja" : "Nei"}</td>
+      <td><button type="button" data-delete-permission="${p.id}">Fjern rettighet</button></td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">Ingen eksplisitte rettigheter. Administratorer har fortsatt full tilgang.</td></tr>`;
+
+  permissionRows.querySelectorAll("[data-delete-permission]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      if (!confirm("Fjerne denne rettigheten?")) return;
+
+      const {error} = await sb.from("library_folder_permissions")
+        .delete()
+        .eq("id",btn.dataset.deletePermission);
+
+      if (error) return announce("Kunne ikke fjerne rettigheten: " + error.message);
+
+      await loadPermissions();
+      announce("Rettigheten er fjernet.");
+    };
+  });
+}
+
+async function refreshCurrent() {
+  await loadFolders();
+  await loadDocuments();
+  await loadPermissions();
+}
+
+upBtn.onclick = async ()=>{
+  if (!currentFolder) {
+    currentFolderId = null;
+  } else {
+    currentFolderId = currentFolder.parent_id || null;
+  }
+  await refreshCurrent();
+};
+
+folderForm.onsubmit = async e=>{
+  e.preventDefault();
+
+  if (!isAdmin()) return announce("Bare administrator kan opprette mapper.");
+
+  const name = folderName.value.trim();
+  if (!name) return announce("Skriv inn et mappenavn.");
+
+  const {error} = await sb.from("library_folders").insert({
+    parent_id:folderParent.value || null,
+    name,
+    description:folderDescription.value.trim() || null,
+    created_by:(await sb.auth.getUser()).data.user?.id || null
+  });
+
+  if (error) return announce("Kunne ikke opprette mappen: " + error.message);
+
+  folderName.value = "";
+  folderDescription.value = "";
+  await loadFolders();
+  announce("Mappen er opprettet.");
+};
+
+renameFolderForm.onsubmit = async e=>{
+  e.preventDefault();
+  if (!currentFolderId || !isAdmin()) return;
+
+  const name = renameFolderName.value.trim();
+  if (!name) return announce("Mappen må ha et navn.");
+
+  const {error} = await sb.from("library_folders")
+    .update({
+      name,
+      description:renameFolderDescription.value.trim() || null
+    })
+    .eq("id",currentFolderId);
+
+  if (error) return announce("Kunne ikke lagre mappen: " + error.message);
+
+  await loadFolders();
+  announce("Mappen er oppdatert.");
+};
+
+deleteFolderBtn.onclick = async ()=>{
+  if (!currentFolderId || !isAdmin()) return;
+
+  if (!confirm("Slette denne mappen og alle undermapper, dokumenter og rettigheter?")) return;
+
+  // For sikkerhet: ikke slett Storage-filer automatisk dersom mappen ikke er tom.
+  const {data:docs} = await sb.from("library_documents")
+    .select("id")
+    .eq("folder_id",currentFolderId)
+    .limit(1);
+
+  const {data:children} = await sb.from("library_folders")
+    .select("id")
+    .eq("parent_id",currentFolderId)
+    .limit(1);
+
+  if ((docs || []).length || (children || []).length) {
+    announce("Mappen er ikke tom. Flytt eller slett dokumenter og undermapper først.");
+    return;
+  }
+
+  const parent = currentFolder?.parent_id || null;
+
+  const {error} = await sb.from("library_folders")
+    .delete()
+    .eq("id",currentFolderId);
+
+  if (error) return announce("Kunne ikke slette mappen: " + error.message);
+
+  currentFolderId = parent;
+  await refreshCurrent();
+  announce("Mappen er slettet.");
+};
+
+permissionSubjectType.onchange = ()=>{
+  permissionRoleWrap.hidden = permissionSubjectType.value !== "role";
+  permissionGroupWrap.hidden = permissionSubjectType.value !== "group";
+  permissionAppRoleWrap.hidden = permissionSubjectType.value !== "app_role";
+};
+
+permissionForm.onsubmit = async e=>{
+  e.preventDefault();
+
+  if (!currentFolderId || !isAdmin()) return;
+
+  const type = permissionSubjectType.value;
+
+  if (type === "role" && !permissionRole.value)
+    return announce("Velg en rolle.");
+
+  if (type === "group" && !permissionGroup.value)
+    return announce("Velg en gruppe eller et utvalg.");
+
+  const row = {
+    folder_id:currentFolderId,
+    subject_type:type,
+    role_id:type==="role" ? permissionRole.value : null,
+    group_id:type==="group" ? permissionGroup.value : null,
+    app_role:type==="app_role" ? permissionAppRole.value : null,
+    can_read:permRead.checked,
+    can_upload:permUpload.checked,
+    can_edit:permEdit.checked,
+    can_delete:permDelete.checked
+  };
+
+  const {error} = await sb.from("library_folder_permissions").insert(row);
+  if (error) return announce("Kunne ikke legge til rettigheten: " + error.message);
+
+  await loadPermissions();
+  announce("Rettigheten er lagt til.");
+};
+
+uploadForm.onsubmit = async e=>{
+  e.preventDefault();
+
+  if (!currentFolderId) return announce("Velg en mappe først.");
+
+  const file = uploadFile.files?.[0];
+  if (!file) return announce("Velg en fil.");
+
+  if (file.size > 50 * 1024 * 1024)
+    return announce("Filen er større enn maksgrensen på 50 MB.");
+
+  const storagePath = `${currentFolderId}/${crypto.randomUUID()}-${safeName(file.name)}`;
+
+  announce(`Laster opp ${file.name} …`);
+
+  const {error:uploadError} = await sb.storage
+    .from("library-documents")
+    .upload(storagePath,file,{
+      contentType:file.type || "application/octet-stream",
+      upsert:false
+    });
+
+  if (uploadError) return announce("Opplasting feilet: " + uploadError.message);
+
+  const {data:{user}} = await sb.auth.getUser();
+
+  const {error:dbError} = await sb.from("library_documents").insert({
+    folder_id:currentFolderId,
+    storage_path:storagePath,
+    original_name:file.name,
+    description:uploadDescription.value.trim() || null,
+    mime_type:file.type || null,
+    size_bytes:file.size,
+    uploaded_by:user?.id || null
+  });
+
+  if (dbError) {
+    await sb.storage.from("library-documents").remove([storagePath]);
+    return announce("Metadata kunne ikke lagres. Filen ble fjernet igjen: " + dbError.message);
+  }
+
+  uploadForm.reset();
+  await loadDocuments();
+  announce("Dokumentet er lastet opp.");
+};
+
+(async()=>{
+  try {
+    await requireSession();
+    me = await getCurrentAppUser();
+
+    if (isAdmin()) adminSection.hidden = false;
+
+    await loadReferenceData();
+    await refreshCurrent();
+    announce("Dokumentbiblioteket er klart.");
+  } catch(e) {
+    console.error(e);
+    announce("Kunne ikke laste dokumentbiblioteket: " + (e?.message || String(e)));
+  }
+})();
+</script>
+</body>
+</html>
