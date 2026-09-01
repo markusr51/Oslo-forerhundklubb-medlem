@@ -76,7 +76,7 @@ async function loadAll() {
 
   r = await sb
     .from("person_roles")
-    .select("id,person_id,role_id,is_active,persons(full_name),roles(name)")
+    .select("person_id,role_id,is_active,persons(full_name),roles(name)")
     .eq("is_active",true)
     .order("person_id");
   if (r.error) throw r.error;
@@ -92,16 +92,17 @@ async function loadAll() {
     <tr>
       <td>${esc(a.persons?.full_name || "")}</td>
       <td>${esc(a.roles?.name || "")}</td>
-      <td><button type="button" data-remove-role="${a.id}">Fjern rolle</button></td>
+      <td><button type="button" data-remove-person="${a.person_id}" data-remove-role="${a.role_id}">Fjern rolle</button></td>
     </tr>
   `).join("") || `<tr><td colspan="3">Ingen aktive rolletildelinger.</td></tr>`;
 
-  roleRows.querySelectorAll("[data-remove-role]").forEach(btn=>{
+  roleRows.querySelectorAll("[data-remove-person][data-remove-role]").forEach(btn=>{
     btn.onclick = async ()=>{
       if (!confirm("Fjerne denne rollen fra personen?")) return;
       const {error} = await sb.from("person_roles")
         .update({is_active:false})
-        .eq("id",btn.dataset.removeRole);
+        .eq("person_id",btn.dataset.removePerson)
+        .eq("role_id",btn.dataset.removeRole);
       if (error) return announce("Kunne ikke fjerne rollen: " + error.message);
       await loadAll();
       announce("Rollen er fjernet.");
@@ -128,18 +129,23 @@ assignForm.onsubmit = async e=>{
     return;
   }
 
-  const {data:inactive} = await sb.from("person_roles")
-    .select("id")
+  const {data:inactive,error:inactiveError} = await sb.from("person_roles")
+    .select("person_id,role_id,is_active")
     .eq("person_id",personSelect.value)
     .eq("role_id",roleSelect.value)
     .eq("is_active",false)
     .maybeSingle();
 
+  if (inactiveError) {
+    return announce("Kunne ikke kontrollere eksisterende rolle: " + inactiveError.message);
+  }
+
   let error = null;
-  if (inactive?.id) {
+  if (inactive) {
     ({error} = await sb.from("person_roles")
       .update({is_active:true})
-      .eq("id",inactive.id));
+      .eq("person_id",personSelect.value)
+      .eq("role_id",roleSelect.value));
   } else {
     ({error} = await sb.from("person_roles").insert({
       person_id:personSelect.value,
