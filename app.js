@@ -62,7 +62,7 @@ async function portalHome() {
   if (!me) return "index.html";
 
   if (me.app_role === "admin" || me.app_role === "system_admin") {
-    return "members.html";
+    return "admin-dashboard.html";
   }
 
   return "my-page.html";

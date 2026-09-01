@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oversikt – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header>
+<img src="logo.png" alt="Oslo Førerhundklubb">
+<h1>Administrasjonsoversikt</h1>
+</header>
+
+<nav aria-label="Hovedmeny">
+<a href="admin-dashboard.html" aria-current="page">Oversikt</a>
+<a href="members.html">Medlemmer</a>
+<a href="events.html">Arrangementer</a>
+<a href="event-templates.html">Arrangementsmaler</a>
+<a href="groups.html">Grupper og utvalg</a>
+<a href="roles.html">Roller</a>
+<a href="library.html">Dokumentbibliotek</a>
+<a href="helper-settlement.html">Hjelpetreneroppgjør</a>
+<a href="sms.html">SMS</a>
+<a href="email.html">E-post</a>
+<a href="admins.html">Brukere og tilganger</a>
+<a href="history.html">Endringshistorikk</a>
+<a href="my-page.html">Min side</a>
+<button type="button" onclick="logout()">Logg ut</button>
+</nav>
+
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster oversikten …</p>
+
+<section aria-labelledby="summaryHeading">
+<h2 id="summaryHeading">Dette krever oppmerksomhet</h2>
+<dl id="summary"></dl>
+</section>
+
+<section aria-labelledby="eventsHeading">
+<h2 id="eventsHeading">Kommende arrangementer</h2>
+<table>
+<caption>Kommende arrangementer</caption>
+<thead>
+<tr>
+<th>Dato</th>
+<th>Arrangement</th>
+<th>Sted</th>
+<th>Påmeldte</th>
+<th>Avventer</th>
+<th>Påmeldingsfrist</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody id="eventRows"></tbody>
+</table>
+</section>
+
+<section aria-labelledby="automationHeading">
+<h2 id="automationHeading">Kommende automatiske utsendelser</h2>
+<table>
+<caption>Automatiske utsendelser de neste 14 dagene</caption>
+<thead>
+<tr>
+<th>Sendes</th>
+<th>Arrangement</th>
+<th>Type</th>
+<th>Målgruppe</th>
+<th>Kanal</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody id="automationRows"></tbody>
+</table>
+</section>
+
+<section aria-labelledby="helperHeading">
+<h2 id="helperHeading">Hjelpetrenerregistreringer som venter på godkjenning</h2>
+<table>
+<caption>Registrerte oppdrag som ikke er godkjent ennå</caption>
+<thead>
+<tr>
+<th>Navn</th>
+<th>Dato</th>
+<th>Type</th>
+<th>Beskrivelse</th>
+<th>Honorar</th>
+<th>Kjøring</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody id="helperRows"></tbody>
+</table>
+</section>
+
+<section aria-labelledby="expenseHeading">
+<h2 id="expenseHeading">Utlegg som venter på behandling</h2>
+<table>
+<caption>Utlegg med status registrert</caption>
+<thead>
+<tr>
+<th>Navn</th>
+<th>Dato</th>
+<th>Beskrivelse</th>
+<th>Beløp</th>
+<th>Kvittering</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody id="expenseRows"></tbody>
+</table>
+</section>
+
+<section aria-labelledby="notificationsHeading">
+<h2 id="notificationsHeading">Uleste varsler</h2>
+<table>
+<caption>Interne administratorvarsler</caption>
+<thead>
+<tr><th>Tid</th><th>Varsel</th><th>Handling</th></tr>
+</thead>
+<tbody id="notificationRows"></tbody>
+</table>
+</section>
+
+<section aria-labelledby="usersHeading">
+<h2 id="usersHeading">Brukere som ikke har fullført førstegangsinnlogging</h2>
+<table>
+<caption>Aktive portalbrukere som fortsatt må sette passord</caption>
+<thead>
+<tr><th>Navn</th><th>Portalrolle</th><th>Opprettet</th><th>Handling</th></tr>
+</thead>
+<tbody id="userRows"></tbody>
+</table>
+</section>
+</main>
+
+<script>
+let data = null;
+
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function dateText(v) {
+  if (!v) return "";
+  return new Date(v+"T12:00:00").toLocaleDateString("nb-NO");
+}
+
+function timeText(v) {
+  return v ? String(v).slice(0,5) : "";
+}
+
+function money(v) {
+  return `${Number(v || 0).toFixed(2)} kr`;
+}
+
+function automationTypeText(v) {
+  return ({
+    invitation:"Invitasjon",
+    pending_reminder:"Påminnelse til de som ikke har svart",
+    attending_reminder:"Påminnelse til påmeldte"
+  })[v] || v;
+}
+
+function activityTypeText(v) {
+  return ({
+    individual_followup:"Individuell oppfølging",
+    day_event:"Dagsarrangement",
+    weekend_event:"Helgearrangement",
+    other:"Annet"
+  })[v] || v;
+}
+
+function targetText(v) {
+  return ({
+    all:"Alle aktive personer",
+    role:"Valgt rolle",
+    group:"Valgt gruppe/utvalg"
+  })[v] || v;
+}
+
+function honor(entry) {
+  return entry.activity_type === "other"
+    ? Number(entry.custom_amount || 0)
+    : Number(entry.rate_snapshot || 0);
+}
+
+function mileage(entry) {
+  return Number(entry.kilometers || 0) *
+    Number(entry.mileage_rate_snapshot || 0);
+}
+
+function renderSummary() {
+  const c = data.counts || {};
+  summary.innerHTML = `
+    <dt>Kommende arrangementer neste 30 dager</dt>
+    <dd>${esc(c.upcoming_events || 0)}</dd>
+
+    <dt>Uleste varsler</dt>
+    <dd>${esc(c.unread_notifications || 0)}</dd>
+
+    <dt>Hjelpetreneroppdrag som venter på godkjenning</dt>
+    <dd>${esc(c.helper_entries_waiting || 0)}</dd>
+
+    <dt>Utlegg som venter på behandling</dt>
+    <dd>${esc(c.expenses_waiting || 0)}</dd>
+
+    <dt>Brukere som ikke har fullført førstegangsinnlogging</dt>
+    <dd>${esc(c.pending_first_login || 0)}</dd>
+  `;
+}
+
+function renderEvents() {
+  const rows = data.events || [];
+
+  eventRows.innerHTML = rows.map(e=>`
+    <tr>
+      <td>${esc(dateText(e.event_date))}</td>
+      <td>${esc(e.title)}</td>
+      <td>${esc(e.location || "")}</td>
+      <td>${esc(e.attending_count || 0)}</td>
+      <td>${esc(e.pending_count || 0)}</td>
+      <td>${esc(e.registration_deadline ? dateText(e.registration_deadline) : "Ingen")}</td>
+      <td><a href="event.html?id=${encodeURIComponent(e.id)}">Åpne arrangement</a></td>
+    </tr>
+  `).join("") || `<tr><td colspan="7">Ingen kommende arrangementer.</td></tr>`;
+}
+
+function renderAutomations() {
+  const rows = data.automation_rules || [];
+
+  automationRows.innerHTML = rows.map(r=>`
+    <tr>
+      <td>${esc(dateText(r.send_date))} kl. ${String(r.send_hour).padStart(2,"0")}:00</td>
+      <td>${esc(r.event_title)}</td>
+      <td>${esc(automationTypeText(r.rule_type))}</td>
+      <td>${esc(targetText(r.target_type))}</td>
+      <td>${esc(r.channel)}</td>
+      <td><a href="event.html?id=${encodeURIComponent(r.event_id)}">Åpne arrangement</a></td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">Ingen automatiske utsendelser de neste 14 dagene.</td></tr>`;
+}
+
+function renderHelper() {
+  const rows = data.helper_entries || [];
+
+  helperRows.innerHTML = rows.map(h=>`
+    <tr>
+      <td>${esc(h.person_name)}</td>
+      <td>${esc(dateText(h.activity_date))}</td>
+      <td>${esc(activityTypeText(h.activity_type))}</td>
+      <td>${esc(h.description || "")}</td>
+      <td>${esc(money(honor(h)))}</td>
+      <td>${esc(money(mileage(h)))}</td>
+      <td>
+        <button type="button" data-approve-helper="${h.id}">Godkjenn</button>
+        <a href="helper-settlement.html">Åpne oppgjør</a>
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="7">Ingen oppdrag venter på godkjenning.</td></tr>`;
+
+  helperRows.querySelectorAll("[data-approve-helper]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      if (!confirm("Godkjenne denne hjelpetrenerregistreringen?")) return;
+
+      const {error} = await sb
+        .from("helper_entries")
+        .update({status:"approved"})
+        .eq("id",btn.dataset.approveHelper);
+
+      if (error) return announce("Kunne ikke godkjenne registreringen: " + error.message);
+
+      announce("Registreringen er godkjent.");
+      await loadDashboard();
+    };
+  });
+}
+
+function renderExpenses() {
+  const rows = data.expenses || [];
+
+  expenseRows.innerHTML = rows.map(x=>`
+    <tr>
+      <td>${esc(x.person_name)}</td>
+      <td>${esc(dateText(x.expense_date))}</td>
+      <td>${esc(x.description)}</td>
+      <td>${esc(money(x.amount))}</td>
+      <td>${x.has_receipt ? "Ja" : "Nei"}</td>
+      <td>
+        <button type="button" data-approve-expense="${x.id}">Godkjenn</button>
+        <a href="helper-settlement.html">Åpne utlegg</a>
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">Ingen utlegg venter på behandling.</td></tr>`;
+
+  expenseRows.querySelectorAll("[data-approve-expense]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      if (!confirm("Godkjenne dette utlegget?")) return;
+
+      const {error} = await sb
+        .from("helper_expenses")
+        .update({status:"approved"})
+        .eq("id",btn.dataset.approveExpense);
+
+      if (error) return announce("Kunne ikke godkjenne utlegget: " + error.message);
+
+      announce("Utlegget er godkjent.");
+      await loadDashboard();
+    };
+  });
+}
+
+function renderNotifications() {
+  const rows = data.notifications || [];
+
+  notificationRows.innerHTML = rows.map(n=>`
+    <tr>
+      <td>${esc(new Date(n.created_at).toLocaleString("nb-NO"))}</td>
+      <td><strong>${esc(n.title)}</strong><br>${esc(n.message)}</td>
+      <td>
+        <button type="button" data-read="${n.id}">Marker som lest</button>
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="3">Ingen uleste varsler.</td></tr>`;
+
+  notificationRows.querySelectorAll("[data-read]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const {error} = await sb
+        .from("admin_notifications")
+        .update({is_read:true})
+        .eq("id",btn.dataset.read);
+
+      if (error) return announce("Kunne ikke markere varselet som lest: " + error.message);
+
+      await loadDashboard();
+      announce("Varselet er markert som lest.");
+    };
+  });
+}
+
+function renderUsers() {
+  const rows = data.pending_users || [];
+
+  userRows.innerHTML = rows.map(u=>`
+    <tr>
+      <td>${esc(u.display_name || "")}</td>
+      <td>${esc(u.app_role || "")}</td>
+      <td>${esc(new Date(u.created_at).toLocaleDateString("nb-NO"))}</td>
+      <td><a href="admins.html">Åpne brukere og tilganger</a></td>
+    </tr>
+  `).join("") || `<tr><td colspan="4">Alle aktive brukere har fullført førstegangsinnlogging.</td></tr>`;
+}
+
+async function loadDashboard() {
+  announce("Oppdaterer oversikten …");
+
+  const {data:dashboard,error} = await sb.rpc("admin_dashboard_data");
+
+  if (error) {
+    announce("Kunne ikke laste administrasjonsoversikten: " + error.message);
+    return;
+  }
+
+  data = dashboard || {};
+  renderSummary();
+  renderEvents();
+  renderAutomations();
+  renderHelper();
+  renderExpenses();
+  renderNotifications();
+  renderUsers();
+
+  announce("Administrasjonsoversikten er oppdatert.");
+}
+
+(async()=>{
+  try {
+    await requireSession();
+
+    const me = await getCurrentAppUser();
+
+    if (!me || !["admin","system_admin"].includes(me.app_role)) {
+      announce("Bare administratorer har tilgang til denne siden.");
+      return;
+    }
+
+    await loadDashboard();
+  } catch(e) {
+    console.error(e);
+    announce("Kunne ikke laste administrasjonsoversikten: " + (e?.message || String(e)));
+  }
+})();
+</script>
+</body>
+</html>
