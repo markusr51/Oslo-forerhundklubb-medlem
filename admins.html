@@ -17,94 +17,220 @@
 <a href="groups.html">Grupper og utvalg</a>
 <a href="roles.html">Roller</a>
 <a href="library.html">Dokumentbibliotek</a>
-<a href="new-person.html">Legg til person</a><a href="sms.html">SMS</a>
+<a href="new-person.html">Legg til person</a>
+<a href="sms.html">SMS</a>
 <a href="email.html">E-post</a>
-<a href="admins.html">Brukere og tilganger</a>
+<a href="admins.html" aria-current="page">Brukere og tilganger</a>
 <a href="history.html">Endringshistorikk</a>
-<button onclick="logout()">Logg ut</button>
+<button type="button" onclick="logout()">Logg ut</button>
 </nav>
+
 <main>
 <p id="status" class="status" role="status" aria-live="polite">Laster …</p>
-<section>
-<h2>Inviter portalbruker</h2>
+
+<section aria-labelledby="inviteHeading">
+<h2 id="inviteHeading">Inviter portalbruker</h2>
+<p>Brukeren må velges fra personregisteret. Invitasjonen sendes til e-postadressen som er registrert der.</p>
+
 <form id="inviteForm">
-<p><label for="displayName">Navn</label><br><input id="displayName" required></p>
-<p><label for="email">E-post</label><br><input id="email" type="email" required></p>
-<p><label for="role">Tilgangsrolle</label><br>
+<p>
+<label for="personSelect">Person</label><br>
+<select id="personSelect"><option value="">Ingen valgt</option></select>
+</p>
+<p id="selectedPerson" class="status" role="status" aria-live="polite">Ingen person valgt.</p>
+
+<p>
+<label for="role">Tilgangsrolle</label><br>
 <select id="role">
-<option value="readonly">Kun lesetilgang</option>
+<option value="readonly">Vanlig medlem / kun medlemstilgang</option>
 <option value="admin">Administrator</option>
 <option value="system_admin">Systemadministrator</option>
-</select></p>
-<button type="submit">Send invitasjon</button>
+</select>
+</p>
+
+<button type="submit">Send aktiveringsinvitasjon</button>
 </form>
 </section>
-<section>
-<h2>Portalbrukere</h2>
+
+<section aria-labelledby="usersHeading">
+<h2 id="usersHeading">Portalbrukere</h2>
 <table>
 <caption>Brukere med portaltilgang</caption>
-<thead><tr><th>Navn</th><th>Rolle</th><th>Aktiv</th><th>Handlinger</th></tr></thead>
+<thead>
+<tr><th>Navn</th><th>Person</th><th>Rolle</th><th>Aktiv</th><th>Førstegangsoppsett</th><th>Handlinger</th></tr>
+</thead>
 <tbody id="userRows"></tbody>
 </table>
 </section>
 </main>
+
 <script>
-let current=null;
+let current = null;
+let people = [];
+let portalUsers = [];
+
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
 (async()=>{
   await requireSession();
-  current=await getCurrentAppUser();
-  if(!current||current.app_role!=='system_admin'){
-    announce('Bare systemadministrator har tilgang.');
-    inviteForm.hidden=true;
+  current = await getCurrentAppUser();
+
+  if (!current || current.app_role !== "system_admin") {
+    announce("Bare systemadministrator har tilgang.");
+    inviteForm.hidden = true;
     return;
   }
+
+  await loadPeople();
   await loadUsers();
 })();
-async function loadUsers(){
-  const {data,error}=await sb.from('app_users').select('user_id,display_name,app_role,active,created_at').order('created_at');
-  if(error){announce('Kunne ikke hente portalbrukere: '+error.message);return;}
-  userRows.innerHTML='';
-  for(const u of data){
-    const tr=document.createElement('tr');
-    const actions=[];
-    if(u.active) actions.push(`<button data-action="deactivate" data-id="${u.user_id}">Deaktiver</button>`);
-    else actions.push(`<button data-action="reactivate" data-id="${u.user_id}">Reaktiver</button>`);
-    actions.push(`<button data-action="role" data-id="${u.user_id}">Endre rolle</button>`);
-    if(u.user_id!==current.user_id) actions.push(`<button data-action="delete" data-id="${u.user_id}">Slett bruker</button>`);
-    tr.innerHTML=`<td>${u.display_name||''}</td><td>${u.app_role}</td><td>${u.active?'Ja':'Nei'}</td><td>${actions.join(' ')}</td>`;
-    userRows.appendChild(tr);
+
+async function loadPeople() {
+  const {data,error} = await sb
+    .from("persons")
+    .select("id,full_name,email,membership_status")
+    .order("full_name");
+
+  if (error) {
+    announce("Kunne ikke hente personregisteret: " + error.message);
+    return;
   }
-  userRows.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>handle(b.dataset.action,b.dataset.id)));
-  announce(data.length+' portalbrukere lastet.');
+
+  people = data || [];
+
+  personSelect.innerHTML =
+    `<option value="">Ingen valgt</option>` +
+    people.map(p=>`
+      <option value="${p.id}">
+        ${esc(p.full_name)}${p.email ? " – " + esc(p.email) : " – mangler e-post"}
+      </option>
+    `).join("");
 }
-inviteForm.addEventListener('submit',async e=>{
-  e.preventDefault();
-  announce('Sender invitasjon …');
-  const {data,error}=await sb.functions.invoke('invite-portal-user',{
-    body:{
-      email:email.value.trim(),
-      displayName:displayName.value.trim(),
-      appRole:role.value,
-      redirectTo:'https://medlem.osloforerhundklubb.no'
-    }
-  });
-  if(error){announce('Invitasjon feilet: '+error.message);return;}
-  announce(data?.message||'Invitasjon sendt.');
-  inviteForm.reset();
-  await loadUsers();
-});
-async function handle(action,id){
-  let body={userId:id,action};
-  if(action==='role'){
-    const r=prompt('Ny rolle: system_admin, admin eller readonly');
-    if(!r)return;
-    body={userId:id,action:'change_role',appRole:r.trim()};
+
+personSelect.onchange = ()=>{
+  const p = people.find(x=>x.id===personSelect.value);
+
+  selectedPerson.textContent = p
+    ? `Valgt person: ${p.full_name}. E-post: ${p.email || "mangler e-post"}.`
+    : "Ingen person valgt.";
+};
+
+async function loadUsers() {
+  const {data,error} = await sb
+    .from("app_users")
+    .select("user_id,display_name,app_role,active,person_id,must_change_password,created_at,persons:person_id(full_name,email)")
+    .order("created_at");
+
+  if (error) {
+    announce("Kunne ikke hente portalbrukere: " + error.message);
+    return;
   }
-  if(action==='delete' && !confirm('Slette portalbrukeren permanent?')) return;
-  if(action==='deactivate' && !confirm('Deaktivere portalbrukeren?')) return;
-  const {data,error}=await sb.functions.invoke('manage-portal-user',{body});
-  if(error){announce('Handlingen feilet: '+error.message);return;}
-  announce(data?.message||'Utført.');
+
+  portalUsers = data || [];
+
+  userRows.innerHTML = portalUsers.map(u=>{
+    const actions = [];
+
+    if (u.active)
+      actions.push(`<button data-action="deactivate" data-id="${u.user_id}">Deaktiver</button>`);
+    else
+      actions.push(`<button data-action="reactivate" data-id="${u.user_id}">Reaktiver</button>`);
+
+    actions.push(`<button data-action="role" data-id="${u.user_id}">Endre rolle</button>`);
+
+    if (u.user_id !== current.user_id)
+      actions.push(`<button data-action="delete" data-id="${u.user_id}">Slett bruker</button>`);
+
+    return `
+      <tr>
+        <td>${esc(u.display_name || "")}</td>
+        <td>${esc(u.persons?.full_name || "Ikke koblet")}</td>
+        <td>${esc(u.app_role)}</td>
+        <td>${u.active ? "Ja" : "Nei"}</td>
+        <td>${u.must_change_password ? "Ikke fullført" : "Fullført"}</td>
+        <td>${actions.join(" ")}</td>
+      </tr>
+    `;
+  }).join("");
+
+  userRows.querySelectorAll("button").forEach(b=>{
+    b.onclick = ()=>handle(b.dataset.action,b.dataset.id);
+  });
+
+  announce(`${portalUsers.length} portalbrukere lastet.`);
+}
+
+inviteForm.onsubmit = async e=>{
+  e.preventDefault();
+
+  const p = people.find(x=>x.id===personSelect.value);
+
+  if (!p) {
+    announce("Velg en person først.");
+    return;
+  }
+
+  if (!p.email) {
+    announce("Personen mangler registrert e-postadresse.");
+    return;
+  }
+
+  if (portalUsers.some(u=>u.person_id===p.id)) {
+    announce("Denne personen har allerede en portalbruker.");
+    return;
+  }
+
+  announce("Sender aktiveringsinvitasjon …");
+
+  const redirectTo =
+    new URL("set-password.html", location.href).href;
+
+  const {data,error} = await sb.functions.invoke(
+    "invite-portal-user",
+    {
+      body:{
+        personId:p.id,
+        appRole:role.value,
+        redirectTo
+      }
+    }
+  );
+
+  if (error) {
+    announce("Invitasjon feilet: " + error.message);
+    return;
+  }
+
+  announce(data?.message || "Aktiveringsinvitasjon sendt.");
+  inviteForm.reset();
+  selectedPerson.textContent = "Ingen person valgt.";
+  await loadUsers();
+};
+
+async function handle(action,id) {
+  let body = {userId:id,action};
+
+  if (action === "role") {
+    const r = prompt("Ny rolle: system_admin, admin eller readonly");
+    if (!r) return;
+    body = {userId:id,action:"change_role",appRole:r.trim()};
+  }
+
+  if (action === "delete" && !confirm("Slette portalbrukeren permanent?")) return;
+  if (action === "deactivate" && !confirm("Deaktivere portalbrukeren?")) return;
+
+  const {data,error} = await sb.functions.invoke("manage-portal-user",{body});
+
+  if (error) {
+    announce("Handlingen feilet: " + error.message);
+    return;
+  }
+
+  announce(data?.message || "Utført.");
   await loadUsers();
 }
 </script>

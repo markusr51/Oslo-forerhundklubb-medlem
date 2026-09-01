@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Min side – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header><h1>Min side</h1></header>
+<nav aria-label="Medlemsmeny">
+<a href="my-page.html" aria-current="page">Min side</a>
+<a href="library.html">Dokumentbibliotek</a>
+<button type="button" onclick="logout()">Logg ut</button>
+</nav>
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster …</p>
+
+<section aria-labelledby="accountHeading">
+<h2 id="accountHeading">Min konto</h2>
+<dl id="accountInfo"></dl>
+</section>
+
+<section aria-labelledby="accessHeading">
+<h2 id="accessHeading">Tilgang</h2>
+<p>Du kan åpne dokumentbiblioteket og vil bare se mapper og dokumenter du har fått tilgang til.</p>
+</section>
+</main>
+
+<script>
+(async()=>{
+  try {
+    await requireSession();
+    const me = await getCurrentAppUser();
+    const {data:{user}} = await sb.auth.getUser();
+
+    accountInfo.innerHTML = `
+      <dt>Navn</dt><dd>${me?.display_name || ""}</dd>
+      <dt>E-post</dt><dd>${user?.email || ""}</dd>
+    `;
+
+    announce("Min side er klar.");
+  } catch(e) {
+    announce("Kunne ikke laste Min side.");
+  }
+})();
+</script>
+</body>
+</html>

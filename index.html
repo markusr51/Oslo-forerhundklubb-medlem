@@ -13,20 +13,75 @@
 <header><img src="logo.png" alt="Oslo Førerhundklubb"><h1>Medlemsportal</h1></header>
 <main>
 <h2>Logg inn</h2>
-<p id="status" class="status" role="status" aria-live="polite">Bruk din portalbruker.</p>
+<p id="status" class="status" role="status" aria-live="polite">
+Logg inn med e-postadressen som er registrert hos Oslo Førerhundklubb.
+</p>
+
 <form id="loginForm">
-<p><label for="email">E-post</label><br><input id="email" type="email" autocomplete="username" required></p>
-<p><label for="password">Passord</label><br><input id="password" type="password" autocomplete="current-password" required></p>
+<p>
+<label for="email">E-post</label><br>
+<input id="email" type="email" autocomplete="username" required>
+</p>
+<p>
+<label for="password">Passord</label><br>
+<input id="password" type="password" autocomplete="current-password" required>
+</p>
 <button type="submit">Logg inn</button>
 </form>
+
+<p><a href="forgot-password.html">Glemt passord?</a></p>
 </main>
+
 <script>
-document.getElementById('loginForm').addEventListener('submit', async e=>{
+const params = new URLSearchParams(location.search);
+if (params.get("disabled") === "1") {
+  announce("Brukerkontoen er deaktivert. Kontakt Oslo Førerhundklubb.");
+}
+
+loginForm.addEventListener("submit", async e=>{
   e.preventDefault();
-  announce('Logger inn …');
-  const {error}=await sb.auth.signInWithPassword({email:email.value.trim(),password:password.value});
-  if(error){announce('Innlogging feilet: '+error.message); return;}
-  location.href='members.html';
+
+  announce("Logger inn …");
+
+  const {error} = await sb.auth.signInWithPassword({
+    email: email.value.trim(),
+    password: password.value
+  });
+
+  if (error) {
+    announce("Innlogging feilet. Kontroller e-post og passord, eller bruk Glemt passord.");
+    return;
+  }
+
+  const {data:{user}} = await sb.auth.getUser();
+
+  const {data:me,error:meError} = await sb
+    .from("app_users")
+    .select("active,must_change_password,app_role")
+    .eq("user_id",user.id)
+    .maybeSingle();
+
+  if (meError || !me) {
+    await sb.auth.signOut();
+    announce("Denne innloggingen er ikke koblet til medlemsportalen. Kontakt administrator.");
+    return;
+  }
+
+  if (me.active === false) {
+    await sb.auth.signOut();
+    announce("Brukerkontoen er deaktivert.");
+    return;
+  }
+
+  if (me.must_change_password) {
+    location.href = "set-password.html";
+    return;
+  }
+
+  location.href =
+    (me.app_role === "admin" || me.app_role === "system_admin")
+      ? "members.html"
+      : "my-page.html";
 });
 </script>
 </body>
