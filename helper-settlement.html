@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hjelpetreneroppgjør – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header><h1>Hjelpetreneroppgjør</h1></header>
+<nav aria-label="Hovedmeny">
+<a href="my-page.html">Min side</a>
+<a href="library.html">Dokumentbibliotek</a>
+<a href="helper-settlement.html" aria-current="page">Hjelpetreneroppgjør</a>
+<a id="adminMembersLink" href="members.html" hidden>Administrasjon</a>
+<button type="button" onclick="logout()">Logg ut</button>
+</nav>
+
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster …</p>
+
+<section aria-labelledby="yearHeading">
+<h2 id="yearHeading">År</h2>
+<p>
+<label for="yearSelect">Velg år</label><br>
+<select id="yearSelect"></select>
+</p>
+</section>
+
+<section id="adminPersonSection" hidden aria-labelledby="personHeading">
+<h2 id="personHeading">Velg hjelpetrener</h2>
+<p>
+<label for="personSelect">Person</label><br>
+<select id="personSelect"><option value="">Ingen valgt</option></select>
+</p>
+</section>
+
+<section aria-labelledby="summaryHeading">
+<h2 id="summaryHeading">Oppsummering</h2>
+<dl id="summary"></dl>
+</section>
+
+<section aria-labelledby="newEntryHeading">
+<h2 id="newEntryHeading">Registrer oppdrag eller kjøring</h2>
+<form id="entryForm">
+<p>
+<label for="activityDate">Dato</label><br>
+<input id="activityDate" type="date" required>
+</p>
+<p>
+<label for="activityType">Type</label><br>
+<select id="activityType">
+<option value="individual_followup">Individuell oppfølging</option>
+<option value="day_event">Dagsarrangement</option>
+<option value="weekend_event">Helgearrangement</option>
+<option value="other">Annet</option>
+</select>
+</p>
+<p>
+<label for="description">Beskrivelse</label><br>
+<input id="description" type="text" maxlength="500">
+</p>
+<p id="customAmountWrap" hidden>
+<label for="customAmount">Beløp for annet oppdrag</label><br>
+<input id="customAmount" type="number" min="0" step="0.01">
+</p>
+
+<fieldset>
+<legend>Kjøregodtgjørelse</legend>
+<p>
+<label for="fromAddress">Fra adresse</label><br>
+<input id="fromAddress" type="text" maxlength="300">
+</p>
+<p>
+<label for="toAddress">Til adresse</label><br>
+<input id="toAddress" type="text" maxlength="300">
+</p>
+<p>
+<label for="kilometers">Antall kilometer</label><br>
+<input id="kilometers" type="number" min="0" step="0.1" value="0">
+</p>
+</fieldset>
+
+<button type="submit">Lagre registrering</button>
+</form>
+</section>
+
+<section aria-labelledby="entriesHeading">
+<h2 id="entriesHeading">Registreringer</h2>
+<table>
+<caption>Oppdrag og kjøring</caption>
+<thead>
+<tr>
+<th>Dato</th><th>Type</th><th>Beskrivelse</th><th>Honorar</th>
+<th>Km</th><th>Kjøring</th><th>Status</th><th>Handling</th>
+</tr>
+</thead>
+<tbody id="entryRows"></tbody>
+</table>
+</section>
+
+<section aria-labelledby="expenseHeading">
+<h2 id="expenseHeading">Registrer utlegg</h2>
+<form id="expenseForm">
+<p>
+<label for="expenseDate">Dato</label><br>
+<input id="expenseDate" type="date" required>
+</p>
+<p>
+<label for="expenseAmount">Beløp</label><br>
+<input id="expenseAmount" type="number" min="0" step="0.01" required>
+</p>
+<p>
+<label for="expenseDescription">Beskrivelse</label><br>
+<input id="expenseDescription" type="text" maxlength="500" required>
+</p>
+<p>
+<label for="receiptFile">Kvittering</label><br>
+<input id="receiptFile" type="file" accept=".pdf,image/*">
+</p>
+<button type="submit">Lagre utlegg</button>
+</form>
+
+<h3>Utlegg</h3>
+<table>
+<caption>Registrerte utlegg</caption>
+<thead>
+<tr><th>Dato</th><th>Beskrivelse</th><th>Beløp</th><th>Status</th><th>Kvittering</th><th>Handling</th></tr>
+</thead>
+<tbody id="expenseRows"></tbody>
+</table>
+</section>
+
+<section id="adminSection" hidden aria-labelledby="adminHeading">
+<h2 id="adminHeading">Administrator</h2>
+
+<h3>Standardsatser</h3>
+<form id="rateForm">
+<p><label for="rateIndividual">Individuell oppfølging</label><br><input id="rateIndividual" type="number" min="0" step="0.01"></p>
+<p><label for="rateDay">Dagsarrangement</label><br><input id="rateDay" type="number" min="0" step="0.01"></p>
+<p><label for="rateWeekend">Helgearrangement</label><br><input id="rateWeekend" type="number" min="0" step="0.01"></p>
+<p><label for="rateMileage">Kilometersats</label><br><input id="rateMileage" type="number" min="0" step="0.01"></p>
+<button type="submit">Lagre satser for valgt år</button>
+</form>
+
+<h3>Eksport</h3>
+<p><button id="exportAllBtn" type="button">Eksporter alle hjelpetrenerregistreringer for året som CSV for Excel</button></p>
+
+<h3>Nye varsler</h3>
+<table>
+<caption>Administratorvarsler</caption>
+<thead><tr><th>Tid</th><th>Varsel</th><th>Handling</th></tr></thead>
+<tbody id="notificationRows"></tbody>
+</table>
+</section>
+</main>
+
+<script>
+let me = null;
+let authUser = null;
+let currentPersonId = null;
+let people = [];
+let rates = {};
+let entries = [];
+let expenses = [];
+
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+function money(v){ return `${Number(v||0).toFixed(2)} kr`; }
+function csv(v){ return `"${String(v??"").replace(/"/g,'""')}"`; }
+function isAdmin(){ return me?.app_role==="admin" || me?.app_role==="system_admin"; }
+function typeText(v){
+  return ({
+    individual_followup:"Individuell oppfølging",
+    day_event:"Dagsarrangement",
+    weekend_event:"Helgearrangement",
+    other:"Annet"
+  })[v] || v;
+}
+function statusText(v){
+  return ({registered:"Registrert",approved:"Godkjent",paid:"Utbetalt",rejected:"Avvist"})[v] || v;
+}
+function safeName(filename){
+  return String(filename||"kvittering")
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g,"_")
+    .slice(0,120);
+}
+
+function selectedYear(){ return Number(yearSelect.value); }
+function selectedPerson(){
+  return isAdmin() ? (personSelect.value || null) : currentPersonId;
+}
+function honor(entry){
+  return entry.activity_type==="other"
+    ? Number(entry.custom_amount||0)
+    : Number(entry.rate_snapshot||0);
+}
+function mileage(entry){
+  return Number(entry.kilometers||0) * Number(entry.mileage_rate_snapshot||0);
+}
+
+async function loadRates(){
+  const {data,error}=await sb.from("helper_rates")
+    .select("rate_type,amount")
+    .eq("year",selectedYear());
+  if(error) return announce("Kunne ikke hente satser: "+error.message);
+
+  rates={};
+  for(const r of data||[]) rates[r.rate_type]=Number(r.amount||0);
+
+  if(isAdmin()){
+    rateIndividual.value=rates.individual_followup||0;
+    rateDay.value=rates.day_event||0;
+    rateWeekend.value=rates.weekend_event||0;
+    rateMileage.value=rates.mileage||0;
+  }
+}
+
+async function loadData(){
+  const pid=selectedPerson();
+
+  if(!pid){
+    entries=[];
+    expenses=[];
+    entryRows.innerHTML='<tr><td colspan="8">Velg en hjelpetrener.</td></tr>';
+    expenseRows.innerHTML='<tr><td colspan="6">Velg en hjelpetrener.</td></tr>';
+    renderSummary();
+    return;
+  }
+
+  let r=await sb.from("helper_entries")
+    .select("*,events(title)")
+    .eq("person_id",pid)
+    .gte("activity_date",`${selectedYear()}-01-01`)
+    .lte("activity_date",`${selectedYear()}-12-31`)
+    .order("activity_date",{ascending:false});
+  if(r.error) return announce("Kunne ikke hente registreringer: "+r.error.message);
+  entries=r.data||[];
+
+  r=await sb.from("helper_expenses")
+    .select("*")
+    .eq("person_id",pid)
+    .gte("expense_date",`${selectedYear()}-01-01`)
+    .lte("expense_date",`${selectedYear()}-12-31`)
+    .order("expense_date",{ascending:false});
+  if(r.error) return announce("Kunne ikke hente utlegg: "+r.error.message);
+  expenses=r.data||[];
+
+  renderEntries();
+  renderExpenses();
+  renderSummary();
+}
+
+function renderSummary(){
+  const h=entries.reduce((s,e)=>s+honor(e),0);
+  const k=entries.reduce((s,e)=>s+mileage(e),0);
+  const u=expenses
+    .filter(e=>e.status!=="rejected")
+    .reduce((s,e)=>s+Number(e.amount||0),0);
+
+  summary.innerHTML=`
+    <dt>Honorar</dt><dd>${money(h)}</dd>
+    <dt>Kjøregodtgjørelse</dt><dd>${money(k)}</dd>
+    <dt>Utlegg</dt><dd>${money(u)}</dd>
+    <dt>Totalt</dt><dd>${money(h+k+u)}</dd>
+  `;
+}
+
+function renderEntries(){
+  entryRows.innerHTML=entries.map(e=>`
+    <tr>
+      <td>${esc(e.activity_date)}</td>
+      <td>${esc(typeText(e.activity_type))}${e.source==="event" ? " – automatisk fra arrangement" : ""}</td>
+      <td>${esc(e.description || e.events?.title || "")}</td>
+      <td>${esc(money(honor(e)))}</td>
+      <td>${esc(e.kilometers||0)}</td>
+      <td>${esc(money(mileage(e)))}</td>
+      <td>${esc(statusText(e.status))}</td>
+      <td>
+        ${isAdmin()?`<button type="button" data-entry-edit="${e.id}">Rediger</button>
+        <button type="button" data-entry-delete="${e.id}">Slett</button>`:""}
+      </td>
+    </tr>
+  `).join("") || '<tr><td colspan="8">Ingen registreringer.</td></tr>';
+
+  entryRows.querySelectorAll("[data-entry-edit]").forEach(b=>{
+    b.onclick=()=>editEntry(b.dataset.entryEdit);
+  });
+  entryRows.querySelectorAll("[data-entry-delete]").forEach(b=>{
+    b.onclick=()=>deleteEntry(b.dataset.entryDelete);
+  });
+}
+
+async function editEntry(id){
+  const e=entries.find(x=>x.id===id); if(!e)return;
+  const newStatus=prompt("Status: registered, approved eller paid",e.status);
+  if(!newStatus)return;
+  const newAmount=prompt("Honorarbeløp. For standardsats-oppdrag endres rate_snapshot.",honor(e));
+  if(newAmount===null)return;
+  const {error}=await sb.from("helper_entries").update({
+    status:newStatus.trim(),
+    rate_snapshot:e.activity_type==="other" ? e.rate_snapshot : Number(newAmount),
+    custom_amount:e.activity_type==="other" ? Number(newAmount) : e.custom_amount
+  }).eq("id",id);
+  if(error)return announce("Kunne ikke endre registreringen: "+error.message);
+  await loadData(); announce("Registreringen er oppdatert.");
+}
+async function deleteEntry(id){
+  if(!confirm("Slette registreringen?"))return;
+  const {error}=await sb.from("helper_entries").delete().eq("id",id);
+  if(error)return announce("Kunne ikke slette: "+error.message);
+  await loadData(); announce("Registreringen er slettet.");
+}
+
+function renderExpenses(){
+  expenseRows.innerHTML=expenses.map(e=>`
+    <tr>
+      <td>${esc(e.expense_date)}</td>
+      <td>${esc(e.description)}</td>
+      <td>${esc(money(e.amount))}</td>
+      <td>${esc(statusText(e.status))}</td>
+      <td>${e.receipt_storage_path?`<button type="button" data-receipt="${e.id}">Last ned</button>`:"Ingen kvittering"}</td>
+      <td>${isAdmin()?`<button type="button" data-expense-status="${e.id}">Endre status</button>`:""}</td>
+    </tr>
+  `).join("") || '<tr><td colspan="6">Ingen utlegg.</td></tr>';
+
+  expenseRows.querySelectorAll("[data-receipt]").forEach(b=>{
+    b.onclick=()=>downloadReceipt(b.dataset.receipt);
+  });
+  expenseRows.querySelectorAll("[data-expense-status]").forEach(b=>{
+    b.onclick=()=>changeExpenseStatus(b.dataset.expenseStatus);
+  });
+}
+
+async function downloadReceipt(id){
+  const e=expenses.find(x=>x.id===id); if(!e?.receipt_storage_path)return;
+  const {data,error}=await sb.storage.from("helper-receipts")
+    .createSignedUrl(e.receipt_storage_path,60);
+  if(error||!data?.signedUrl)return announce("Kunne ikke hente kvittering: "+(error?.message||"ukjent feil"));
+  const a=document.createElement("a");
+  a.href=data.signedUrl;
+  a.download=e.receipt_original_name||"kvittering";
+  a.click();
+}
+async function changeExpenseStatus(id){
+  const e=expenses.find(x=>x.id===id); if(!e)return;
+  const v=prompt("Status: registered, approved, paid eller rejected",e.status);
+  if(!v)return;
+  const {error}=await sb.from("helper_expenses").update({status:v.trim()}).eq("id",id);
+  if(error)return announce("Kunne ikke endre status: "+error.message);
+  await loadData(); announce("Status er oppdatert.");
+}
+
+activityType.onchange=()=>{
+  customAmountWrap.hidden=activityType.value!=="other";
+};
+
+entryForm.onsubmit=async e=>{
+  e.preventDefault();
+  const pid=selectedPerson();
+  if(!pid)return announce("Ingen person er valgt.");
+
+  const type=activityType.value;
+  const rate=type==="other" ? 0 : Number(rates[type]||0);
+  const kmRate=Number(rates.mileage||0);
+
+  const {error}=await sb.from("helper_entries").insert({
+    person_id:pid,
+    source:"manual",
+    activity_date:activityDate.value,
+    activity_type:type,
+    description:description.value.trim()||null,
+    rate_snapshot:rate,
+    custom_amount:type==="other" ? Number(customAmount.value||0) : null,
+    from_address:fromAddress.value.trim()||null,
+    to_address:toAddress.value.trim()||null,
+    kilometers:Number(kilometers.value||0),
+    mileage_rate_snapshot:kmRate,
+    created_by:authUser?.id||null
+  });
+  if(error)return announce("Kunne ikke lagre registreringen: "+error.message);
+
+  entryForm.reset();
+  kilometers.value="0";
+  customAmountWrap.hidden=true;
+  activityDate.value=new Date().toISOString().slice(0,10);
+  await loadData();
+  announce("Registreringen er lagret.");
+};
+
+expenseForm.onsubmit=async e=>{
+  e.preventDefault();
+  const pid=selectedPerson();
+  if(!pid)return announce("Ingen person er valgt.");
+
+  let storagePath=null, originalName=null, mime=null;
+  const file=receiptFile.files?.[0];
+
+  if(file){
+    if(file.size>25*1024*1024)return announce("Kvitteringen er større enn 25 MB.");
+    storagePath=`${pid}/${crypto.randomUUID()}-${safeName(file.name)}`;
+    const {error:upErr}=await sb.storage.from("helper-receipts").upload(storagePath,file,{
+      contentType:file.type||"application/octet-stream",
+      upsert:false
+    });
+    if(upErr)return announce("Kunne ikke laste opp kvitteringen: "+upErr.message);
+    originalName=file.name; mime=file.type||null;
+  }
+
+  const {data:row,error}=await sb.from("helper_expenses").insert({
+    person_id:pid,
+    expense_date:expenseDate.value,
+    amount:Number(expenseAmount.value),
+    description:expenseDescription.value.trim(),
+    receipt_storage_path:storagePath,
+    receipt_original_name:originalName,
+    receipt_mime_type:mime,
+    created_by:authUser?.id||null
+  }).select("id").single();
+
+  if(error){
+    if(storagePath)await sb.storage.from("helper-receipts").remove([storagePath]);
+    return announce("Kunne ikke lagre utlegget: "+error.message);
+  }
+
+  const p=people.find(x=>x.id===pid);
+  await sb.from("admin_notifications").insert({
+    notification_type:"helper_expense",
+    title:`Nytt utlegg: ${p?.full_name||"Hjelpetrener"}`,
+    message:`${expenseDescription.value.trim()} – ${money(expenseAmount.value)}`,
+    related_person_id:pid,
+    related_expense_id:row.id
+  });
+
+  // Send e-postvarsel. Selve kvitteringen forblir privat i portalen.
+  try{
+    await sb.functions.invoke("notify-helper-expense",{body:{expenseId:row.id}});
+  }catch{}
+
+  expenseForm.reset();
+  expenseDate.value=new Date().toISOString().slice(0,10);
+  await loadData();
+  announce("Utlegget er lagret og administrator er varslet.");
+};
+
+rateForm.onsubmit=async e=>{
+  e.preventDefault();
+  const year=selectedYear();
+  const rows=[
+    ["individual_followup",rateIndividual.value],
+    ["day_event",rateDay.value],
+    ["weekend_event",rateWeekend.value],
+    ["mileage",rateMileage.value]
+  ].map(([rate_type,amount])=>({year,rate_type,amount:Number(amount||0)}));
+
+  const {error}=await sb.from("helper_rates").upsert(rows,{onConflict:"year,rate_type"});
+  if(error)return announce("Kunne ikke lagre satser: "+error.message);
+  await loadRates(); announce("Satsene er lagret.");
+};
+
+async function loadNotifications(){
+  if(!isAdmin())return;
+  const {data,error}=await sb.from("admin_notifications")
+    .select("*").eq("is_read",false)
+    .order("created_at",{ascending:false}).limit(50);
+  if(error)return;
+  notificationRows.innerHTML=(data||[]).map(n=>`
+    <tr>
+      <td>${esc(new Date(n.created_at).toLocaleString("nb-NO"))}</td>
+      <td>${esc(n.title)} – ${esc(n.message)}</td>
+      <td><button type="button" data-read="${n.id}">Marker som lest</button></td>
+    </tr>
+  `).join("")||'<tr><td colspan="3">Ingen nye varsler.</td></tr>';
+  notificationRows.querySelectorAll("[data-read]").forEach(b=>{
+    b.onclick=async()=>{
+      await sb.from("admin_notifications").update({is_read:true}).eq("id",b.dataset.read);
+      await loadNotifications();
+    };
+  });
+}
+
+exportAllBtn.onclick=async()=>{
+  const y=selectedYear();
+  const {data,error}=await sb.from("helper_entries")
+    .select("*,persons(full_name,email)")
+    .gte("activity_date",`${y}-01-01`)
+    .lte("activity_date",`${y}-12-31`)
+    .order("activity_date");
+  if(error)return announce("Eksport feilet: "+error.message);
+
+  const {data:exp,error:expErr}=await sb.from("helper_expenses")
+    .select("*,persons(full_name,email)")
+    .gte("expense_date",`${y}-01-01`)
+    .lte("expense_date",`${y}-12-31`)
+    .order("expense_date");
+  if(expErr)return announce("Eksport feilet: "+expErr.message);
+
+  const lines=[
+    ["Navn","E-post","Dato","Type","Beskrivelse","Honorar","Kilometer","Km-sats","Kjøregodtgjørelse","Utlegg","Status"].map(csv).join(";")
+  ];
+
+  for(const e of data||[]){
+    lines.push([
+      e.persons?.full_name||"",e.persons?.email||"",e.activity_date,typeText(e.activity_type),
+      e.description||"",honor(e),e.kilometers||0,e.mileage_rate_snapshot||0,mileage(e),0,e.status
+    ].map(csv).join(";"));
+  }
+  for(const x of exp||[]){
+    lines.push([
+      x.persons?.full_name||"",x.persons?.email||"",x.expense_date,"Utlegg",x.description||"",
+      0,0,0,0,x.amount||0,x.status
+    ].map(csv).join(";"));
+  }
+
+  const blob=new Blob(["\uFEFF"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`hjelpetreneroppgjor_${y}.csv`;
+  a.click();
+  announce("Årsfilen er eksportert.");
+};
+
+yearSelect.onchange=async()=>{
+  await loadRates(); await loadData(); if(isAdmin())await loadNotifications();
+};
+personSelect.onchange=loadData;
+
+(async()=>{
+  try{
+    await requireSession();
+    me=await getCurrentAppUser();
+    ({data:{user:authUser}}=await sb.auth.getUser());
+    currentPersonId=me?.person_id||null;
+
+    for(let y=new Date().getFullYear()-2;y<=new Date().getFullYear()+1;y++){
+      yearSelect.insertAdjacentHTML("beforeend",`<option value="${y}">${y}</option>`);
+    }
+    yearSelect.value=String(new Date().getFullYear());
+
+    activityDate.value=new Date().toISOString().slice(0,10);
+    expenseDate.value=new Date().toISOString().slice(0,10);
+
+    if(isAdmin()){
+      adminSection.hidden=false;
+      adminPersonSection.hidden=false;
+      adminMembersLink.hidden=false;
+      const r=await sb.from("persons").select("id,full_name,email").order("full_name");
+      people=r.data||[];
+      personSelect.innerHTML='<option value="">Ingen valgt</option>'+
+        people.map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
+    }else{
+      const r=await sb.from("persons").select("id,full_name,email").eq("id",currentPersonId).maybeSingle();
+      if(r.data)people=[r.data];
+    }
+
+    await loadRates();
+    await loadData();
+    if(isAdmin())await loadNotifications();
+    announce("Hjelpetreneroppgjør er klart.");
+  }catch(err){
+    console.error(err);
+    announce("Kunne ikke laste hjelpetreneroppgjør: "+(err?.message||String(err)));
+  }
+})();
+</script>
+</body>
+</html>
