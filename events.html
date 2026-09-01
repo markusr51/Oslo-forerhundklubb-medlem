@@ -58,7 +58,7 @@ function escapeHtml(v) {
 
   const { data, error } = await sb
     .from("events")
-    .select("id,title,event_date,start_time,end_time,location,status")
+    .select("id,title,event_date,end_date,start_time,end_time,location,status")
     .order("event_date", { ascending: true })
     .order("start_time", { ascending: true });
 
@@ -69,7 +69,7 @@ function escapeHtml(v) {
 
   eventRows.innerHTML = (data || []).map(e => `
     <tr>
-      <td>${escapeHtml(norwegianDate(e.event_date))}</td>
+      <td>${escapeHtml(norwegianDate(e.event_date))}${e.end_date && e.end_date !== e.event_date ? "–" + escapeHtml(norwegianDate(e.end_date)) : ""}</td>
       <td>${escapeHtml(e.title)}</td>
       <td>${escapeHtml(norwegianTime(e.start_time))}${e.end_time ? "–" + escapeHtml(norwegianTime(e.end_time)) : ""}</td>
       <td>${escapeHtml(e.location || "")}</td>

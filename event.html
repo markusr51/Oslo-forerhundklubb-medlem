@@ -126,7 +126,7 @@ async function loadEvent() {
   editLink.href = "event-edit.html?id=" + encodeURIComponent(eventId);
 
   details.innerHTML = `
-    <dt>Dato</dt><dd>${escapeHtml(norwegianDate(data.event_date))}</dd>
+    <dt>Dato</dt><dd>${escapeHtml(norwegianDate(data.event_date))}${data.end_date && data.end_date !== data.event_date ? "–" + escapeHtml(norwegianDate(data.end_date)) : ""}</dd>
     <dt>Tid</dt><dd>${escapeHtml(norwegianTime(data.start_time))}${data.end_time ? "–" + escapeHtml(norwegianTime(data.end_time)) : ""}</dd>
     <dt>Sted</dt><dd>${escapeHtml(data.location || "Ikke angitt")}</dd>
     <dt>Status</dt><dd>${escapeHtml(eventStatusText(data.status))}</dd>
