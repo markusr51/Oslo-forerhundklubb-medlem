@@ -10,42 +10,218 @@
 <script src="app.js"></script>
 </head>
 <body>
-<header><h1>Min side</h1></header>
-<nav aria-label="Medlemsmeny">
+<header>
+<img src="logo.png" alt="Oslo Førerhundklubb">
+<h1>Min side</h1>
+</header>
+
+<nav aria-label="Min side-meny">
 <a href="my-page.html" aria-current="page">Min side</a>
 <a href="library.html">Dokumentbibliotek</a>
-<a href="helper-settlement.html">Hjelpetreneroppgjør</a>
+<a id="helperNav" href="helper-settlement.html" hidden>Hjelpetreneroppgjør</a>
+<a id="adminNav" href="members.html" hidden>Administrasjon</a>
 <button type="button" onclick="logout()">Logg ut</button>
 </nav>
-<main>
-<p id="status" class="status" role="status" aria-live="polite">Laster …</p>
 
-<section aria-labelledby="accountHeading">
-<h2 id="accountHeading">Min konto</h2>
-<dl id="accountInfo"></dl>
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster Min side …</p>
+
+<section aria-labelledby="profileHeading">
+<h2 id="profileHeading">Mine opplysninger</h2>
+<dl id="profileInfo"></dl>
 </section>
 
-<section aria-labelledby="accessHeading">
-<h2 id="accessHeading">Tilgang</h2>
-<p>Du kan åpne dokumentbiblioteket og vil bare se mapper og dokumenter du har fått tilgang til.</p>
+<section aria-labelledby="rolesHeading">
+<h2 id="rolesHeading">Mine roller og grupper</h2>
+
+<h3>Roller</h3>
+<ul id="roleList"></ul>
+
+<h3>Grupper og utvalg</h3>
+<ul id="groupList"></ul>
+</section>
+
+<section aria-labelledby="eventsHeading">
+<h2 id="eventsHeading">Mine kommende arrangementer</h2>
+<div id="eventList"></div>
+</section>
+
+<section aria-labelledby="documentsHeading">
+<h2 id="documentsHeading">Nylige dokumenter jeg har tilgang til</h2>
+<div id="documentList"></div>
+<p><a href="library.html">Åpne hele dokumentbiblioteket</a></p>
+</section>
+
+<section id="helperSection" hidden aria-labelledby="helperHeading">
+<h2 id="helperHeading">Mitt hjelpetreneroppgjør</h2>
+<dl id="helperSummary"></dl>
+<p><a href="helper-settlement.html">Åpne hjelpetreneroppgjøret</a></p>
 </section>
 </main>
 
 <script>
+let me = null;
+let dashboard = null;
+
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function money(v) {
+  return `${Number(v || 0).toFixed(2)} kr`;
+}
+
+function dateText(v) {
+  if (!v) return "";
+  return new Date(v + "T12:00:00").toLocaleDateString("nb-NO");
+}
+
+function timeText(v) {
+  return v ? String(v).slice(0,5) : "";
+}
+
+function participantText(v) {
+  return ({
+    attending:"Påmeldt",
+    declined:"Ikke påmeldt",
+    pending:"Avventer svar"
+  })[v] || "";
+}
+
+function renderProfile() {
+  const p = dashboard.person || {};
+
+  profileInfo.innerHTML = `
+    <dt>Navn</dt>
+    <dd>${esc(p.name || me?.display_name || "")}</dd>
+    <dt>E-post</dt>
+    <dd>${esc(p.email || "")}</dd>
+    <dt>Telefon</dt>
+    <dd>${esc(p.phone || "")}</dd>
+  `;
+}
+
+function renderRoles() {
+  const roles = dashboard.roles || [];
+  const groups = dashboard.groups || [];
+
+  roleList.innerHTML = roles.length
+    ? roles.map(r=>`<li>${esc(r.name)}</li>`).join("")
+    : "<li>Ingen registrerte roller.</li>";
+
+  groupList.innerHTML = groups.length
+    ? groups.map(g=>`
+        <li>
+          ${esc(g.name)}
+          ${g.function_name ? ` – ${esc(g.function_name)}` : ""}
+        </li>
+      `).join("")
+    : "<li>Du er ikke registrert i noen grupper eller utvalg.</li>";
+
+  const helper = roles.some(r=>String(r.name).toLowerCase()==="hjelpetrener");
+  helperNav.hidden = !helper;
+}
+
+function renderEvents() {
+  const events = dashboard.events || [];
+
+  eventList.innerHTML = events.length
+    ? events.map(e=>`
+      <article>
+        <h3>${esc(e.title)}</h3>
+        <dl>
+          <dt>Dato</dt>
+          <dd>
+            ${esc(dateText(e.event_date))}
+            ${e.end_date && e.end_date !== e.event_date ? "–" + esc(dateText(e.end_date)) : ""}
+          </dd>
+          <dt>Tid</dt>
+          <dd>${esc(timeText(e.start_time))}${e.end_time ? "–" + esc(timeText(e.end_time)) : ""}</dd>
+          <dt>Sted</dt>
+          <dd>${esc(e.location || "Ikke angitt")}</dd>
+          ${e.participant_status ? `
+            <dt>Påmelding</dt>
+            <dd>${esc(participantText(e.participant_status))}</dd>
+          ` : ""}
+          ${e.associated_function ? `
+            <dt>Min funksjon</dt>
+            <dd>${esc(e.associated_function)}</dd>
+          ` : ""}
+        </dl>
+      </article>
+    `).join("")
+    : "<p>Ingen kommende arrangementer er knyttet til deg akkurat nå.</p>";
+}
+
+function renderDocuments() {
+  const docs = dashboard.documents || [];
+
+  documentList.innerHTML = docs.length
+    ? docs.map(d=>`
+      <article>
+        <h3>${esc(d.name)}</h3>
+        <p>Mappe: ${esc(d.folder_name || "")}</p>
+        ${d.description ? `<p>${esc(d.description)}</p>` : ""}
+        <p><small>Lagt til ${esc(new Date(d.created_at).toLocaleString("nb-NO"))}</small></p>
+        <p><a href="library.html">Åpne i dokumentbiblioteket</a></p>
+      </article>
+    `).join("")
+    : "<p>Ingen tilgjengelige dokumenter ennå.</p>";
+}
+
+function renderHelper() {
+  if (!dashboard.helper) {
+    helperSection.hidden = true;
+    return;
+  }
+
+  helperSection.hidden = false;
+
+  const h = dashboard.helper;
+  const total =
+    Number(h.honor || 0) +
+    Number(h.mileage || 0) +
+    Number(h.expenses || 0);
+
+  helperSummary.innerHTML = `
+    <dt>År</dt><dd>${esc(h.year)}</dd>
+    <dt>Honorar</dt><dd>${esc(money(h.honor))}</dd>
+    <dt>Kjøregodtgjørelse</dt><dd>${esc(money(h.mileage))}</dd>
+    <dt>Utlegg</dt><dd>${esc(money(h.expenses))}</dd>
+    <dt>Totalt registrert</dt><dd>${esc(money(total))}</dd>
+  `;
+}
+
 (async()=>{
   try {
     await requireSession();
-    const me = await getCurrentAppUser();
-    const {data:{user}} = await sb.auth.getUser();
+    me = await getCurrentAppUser();
 
-    accountInfo.innerHTML = `
-      <dt>Navn</dt><dd>${me?.display_name || ""}</dd>
-      <dt>E-post</dt><dd>${user?.email || ""}</dd>
-    `;
+    if (me?.app_role === "admin" || me?.app_role === "system_admin") {
+      adminNav.hidden = false;
+    }
+
+    const {data,error} = await sb.rpc("my_portal_dashboard");
+
+    if (error) {
+      announce("Kunne ikke laste Min side: " + error.message);
+      return;
+    }
+
+    dashboard = data || {};
+
+    renderProfile();
+    renderRoles();
+    renderEvents();
+    renderDocuments();
+    renderHelper();
 
     announce("Min side er klar.");
   } catch(e) {
-    announce("Kunne ikke laste Min side.");
+    console.error(e);
+    announce("Kunne ikke laste Min side: " + (e?.message || String(e)));
   }
 })();
 </script>
