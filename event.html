@@ -1,34 +1,1069 @@
-<!doctype html><html lang="no"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Arrangement – Oslo Førerhundklubb</title><link rel="stylesheet" href="style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script><script src="events.js"></script></head><body>
-<header><h1 id="eventHeading">Arrangement</h1></header><nav aria-label="Hovedmeny"><a href="events.html">Til arrangementer</a><a href="members.html">Medlemmer</a><a href="sms.html">SMS</a><a href="email.html">E-post</a><button type="button" onclick="logout()">Logg ut</button></nav><main>
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arrangement – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script src="events.js"></script>
+</head>
+<body>
+<header><h1 id="eventHeading">Arrangement</h1></header>
+
+<nav aria-label="Hovedmeny">
+<a href="events.html">Til arrangementer</a>
+<a href="members.html">Medlemmer</a>
+<a href="sms.html">SMS</a>
+<a href="email.html">E-post</a>
+<button type="button" onclick="logout()">Logg ut</button>
+</nav>
+
+<main>
 <p id="status" class="status" role="status" aria-live="polite">Laster …</p>
-<section><h2>Detaljer</h2><dl id="details"></dl><div class="actions"><a id="editLink" class="button" href="#">Rediger arrangement</a><button id="cancelBtn" type="button">Avlys arrangement</button><button id="restoreBtn" type="button" hidden>Gjenåpne arrangement</button></div></section>
-<section aria-labelledby="communicationHeading"><h2 id="communicationHeading">Invitasjon og kommunikasjon</h2><fieldset><legend>Målgruppe</legend><p><label for="audienceMode">Velg målgruppe</label><br><select id="audienceMode"><option value="all">Alle aktive personer</option><option value="role">Aktive personer med valgt rolle</option><option value="person">Én person</option><option value="pending">Bare personer som står som Avventer</option></select></p><p id="audienceRoleWrap" hidden><label for="audienceRole">Rolle</label><br><select id="audienceRole"></select></p><p id="audienceFunctionWrap" hidden>
-<label for="audienceFunction">Funksjon</label><br>
-<select id="audienceFunction"><option value="">Ingen valgt</option><option value="Hjelpetrener">Hjelpetrener</option><option value="Skoletrener">Skoletrener</option><option value="Tolk">Tolk</option><option value="Ledsager">Ledsager</option><option value="Arrangør">Arrangør</option><option value="Annet">Annet</option></select>
+
+<section aria-labelledby="detailsHeading">
+<h2 id="detailsHeading">Detaljer</h2>
+<dl id="details"></dl>
+<div class="actions">
+<a id="editLink" class="button" href="#">Rediger arrangement</a>
+<button id="cancelBtn" type="button">Avlys arrangement</button>
+<button id="restoreBtn" type="button" hidden>Gjenåpne arrangement</button>
+</div>
+</section>
+
+<section aria-labelledby="communicationHeading">
+<h2 id="communicationHeading">Invitasjon og kommunikasjon</h2>
+
+<fieldset>
+<legend>Målgruppe</legend>
+<p>
+<label for="audienceMode">Velg målgruppe</label><br>
+<select id="audienceMode">
+<option value="all">Alle aktive personer</option>
+<option value="role">Aktive personer med valgt rolle</option>
+<option value="person">Én person</option>
+<option value="pending">De som ikke har svart / Avventer</option>
+<option value="attending">Påmeldte deltakere</option>
+<option value="associated">Alle tilknyttede personer</option>
+<option value="function">Tilknyttede med valgt funksjon</option>
+</select>
 </p>
 
-<p id="audiencePersonWrap" hidden><label for="audiencePerson">Person</label><br><select id="audiencePerson"></select></p><p id="audienceStatus" class="status" role="status" aria-live="polite"></p></fieldset>
-<fieldset><legend>Kanaler</legend><p><label><input id="sendEmailCheck" type="checkbox" checked> Send e-post</label></p><p><label><input id="sendSmsCheck" type="checkbox"> Send svarbar SMS</label></p><p><label><input id="calendarCheck" type="checkbox" checked> Legg ved kalenderinvitasjon i e-post</label></p></fieldset>
-<p><label for="communicationSubject">E-postemne</label><br><input id="communicationSubject" type="text" maxlength="200"></p><p><label for="communicationMessage">Meldingstekst</label><br><textarea id="communicationMessage" rows="12" maxlength="10000"></textarea></p><p><button type="button" id="fillSuggestionBtn">Fyll inn forslag fra arrangementet</button><button type="button" id="testCommunicationBtn">Send test til meg</button><button type="button" id="sendCommunicationBtn">Send til målgruppen</button></p><p id="communicationResult" class="status" role="status" aria-live="polite">Ingen utsending er kjørt ennå.</p></section>
-<section><h2>Deltakere og påmeldinger</h2><p id="participantSummary"></p><form id="participantForm"><fieldset><legend>Legg til eller oppdater deltaker</legend><p><label for="personSelect">Person</label><br><select id="personSelect"><option value="">Ingen valgt</option></select></p><p id="selectedParticipant" class="status" role="status" aria-live="polite"></p><p><label for="participantStatus">Påmeldingsstatus</label><br><select id="participantStatus"><option value="pending">Avventer</option><option value="attending">Påmeldt</option><option value="declined">Avmeldt</option></select></p><p><label for="guestCount">Ekstra deltakere / ledsagere</label><br><select id="guestCount"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></p><p><label for="participantNote">Notat</label><br><input id="participantNote" type="text" maxlength="500"></p><button type="submit">Lagre deltaker</button></fieldset></form><table><caption>Deltakerliste</caption><thead><tr><th>Navn</th><th>Status</th><th>Ekstra</th><th>Notat</th><th>Handling</th></tr></thead><tbody id="participantRows"></tbody></table></section>
-<section><h2>SMS-svar til dette arrangementet</h2><p>Innkommende svar kobles automatisk til arrangementet når de svarer på en svarbar SMS sendt herfra.</p><button type="button" id="refreshRepliesBtn">Oppdater SMS-svar</button><table><caption>SMS-svar for arrangementet</caption><thead><tr><th>Tid</th><th>Person</th><th>Telefon</th><th>Svar</th><th>Registrer</th></tr></thead><tbody id="replyRows"></tbody></table></section>
-<section class="danger"><h2>Permanent sletting</h2><p>Permanent sletting er bare tilgjengelig for systemadministrator.</p><button id="deleteBtn" type="button">Slett arrangement permanent</button></section></main>
+<p id="audienceRoleWrap" hidden>
+<label for="audienceRole">Rolle</label><br>
+<select id="audienceRole"><option value="">Ingen valgt</option></select>
+</p>
+
+<p id="audiencePersonWrap" hidden>
+<label for="audiencePerson">Person</label><br>
+<select id="audiencePerson"><option value="">Ingen valgt</option></select>
+</p>
+
+<p id="audienceFunctionWrap" hidden>
+<label for="audienceFunction">Funksjon</label><br>
+<select id="audienceFunction">
+<option value="">Ingen valgt</option>
+<option value="Hjelpetrener">Hjelpetrener</option>
+<option value="Skoletrener">Skoletrener</option>
+<option value="Tolk">Tolk</option>
+<option value="Ledsager">Ledsager</option>
+<option value="Arrangør">Arrangør</option>
+<option value="Annet">Annet</option>
+</select>
+</p>
+
+<p id="audienceStatus" class="status" role="status" aria-live="polite">Ingen målgruppe beregnet ennå.</p>
+</fieldset>
+
+<fieldset>
+<legend>Kanaler</legend>
+<p><label><input id="sendEmailCheck" type="checkbox" checked> Send e-post</label></p>
+<p><label><input id="sendSmsCheck" type="checkbox"> Send SMS</label></p>
+<p><label><input id="smsReplyCheck" type="checkbox"> SMS skal være svarbar</label></p>
+<p><label><input id="calendarCheck" type="checkbox" checked> Legg ved kalenderinvitasjon i e-post</label></p>
+</fieldset>
+
+<p>
+<label for="communicationSubject">E-postemne</label><br>
+<input id="communicationSubject" type="text" maxlength="200">
+</p>
+
+<p>
+<label for="communicationMessage">Meldingstekst</label><br>
+<textarea id="communicationMessage" rows="12" maxlength="10000"></textarea>
+</p>
+
+<p>
+<button type="button" id="fillSuggestionBtn">Fyll inn forslag fra arrangementet</button>
+<button type="button" id="testCommunicationBtn">Send test til meg</button>
+<button type="button" id="sendCommunicationBtn">Send til målgruppen</button>
+</p>
+
+<p id="communicationResult" class="status" role="status" aria-live="polite">Ingen utsending er kjørt ennå.</p>
+</section>
+
+<section aria-labelledby="attendeeListHeading">
+<h2 id="attendeeListHeading">Påmeldte</h2>
+<p id="attendeeSummary">Laster påmeldte …</p>
+<p><button type="button" id="exportAttendeesBtn">Eksporter påmeldte som CSV for Excel</button></p>
+
+<table>
+<caption>Påmeldte med kontaktinformasjon</caption>
+<thead>
+<tr><th>Navn</th><th>Telefon</th><th>E-post</th><th>Ekstra deltakere</th></tr>
+</thead>
+<tbody id="attendeeRows"></tbody>
+</table>
+</section>
+
+<section aria-labelledby="participantsHeading">
+<h2 id="participantsHeading">Deltakere og påmeldinger</h2>
+<p id="participantSummary"></p>
+
+<form id="participantForm">
+<fieldset>
+<legend>Legg til eller oppdater deltaker</legend>
+<p>
+<label for="personSelect">Person</label><br>
+<select id="personSelect"><option value="">Ingen valgt</option></select>
+</p>
+<p id="selectedParticipant" class="status" role="status" aria-live="polite">Ingen person valgt.</p>
+
+<p>
+<label for="participantStatus">Påmeldingsstatus</label><br>
+<select id="participantStatus">
+<option value="pending">Avventer</option>
+<option value="attending">Påmeldt</option>
+<option value="declined">Avmeldt</option>
+</select>
+</p>
+
+<p>
+<label for="guestCount">Ekstra deltakere / ledsagere</label><br>
+<select id="guestCount">
+<option value="0">0</option><option value="1">1</option><option value="2">2</option>
+<option value="3">3</option><option value="4">4</option><option value="5">5</option>
+</select>
+</p>
+
+<p>
+<label for="participantNote">Notat</label><br>
+<input id="participantNote" type="text" maxlength="500">
+</p>
+
+<button type="submit">Lagre deltaker</button>
+</fieldset>
+</form>
+
+<table>
+<caption>Alle påmeldingsstatuser</caption>
+<thead>
+<tr><th>Navn</th><th>Status</th><th>Ekstra</th><th>Notat</th><th>Handling</th></tr>
+</thead>
+<tbody id="participantRows"></tbody>
+</table>
+</section>
+
+<section aria-labelledby="associatedHeading">
+<h2 id="associatedHeading">Tilknyttede personer</h2>
+<p>Her kan du knytte hjelpetrener, skoletrener, tolk, ledsager, arrangør eller annen funksjon til arrangementet.</p>
+
+<form id="associatedForm">
+<p>
+<label for="associatedPerson">Person</label><br>
+<select id="associatedPerson"><option value="">Ingen valgt</option></select>
+</p>
+<p id="associatedPersonStatus" class="status" role="status" aria-live="polite">Ingen person valgt.</p>
+
+<p>
+<label for="associatedFunction">Funksjon på arrangementet</label><br>
+<select id="associatedFunction">
+<option value="">Ingen valgt</option>
+<option value="Hjelpetrener">Hjelpetrener</option>
+<option value="Skoletrener">Skoletrener</option>
+<option value="Tolk">Tolk</option>
+<option value="Ledsager">Ledsager</option>
+<option value="Arrangør">Arrangør</option>
+<option value="Annet">Annet</option>
+</select>
+</p>
+
+<p>
+<label for="associatedNote">Notat</label><br>
+<input id="associatedNote" type="text" maxlength="500">
+</p>
+
+<button type="submit">Legg til tilknyttet person</button>
+</form>
+
+<table>
+<caption>Tilknyttede personer</caption>
+<thead>
+<tr><th>Navn</th><th>Funksjon</th><th>Telefon</th><th>E-post</th><th>Handling</th></tr>
+</thead>
+<tbody id="associatedRows"></tbody>
+</table>
+</section>
+
+<section aria-labelledby="notesHeading">
+<h2 id="notesHeading">Interne notater</h2>
+<p>Notatene er bare for innloggede administratorer/arrangører og sendes ikke ut.</p>
+
+<form id="noteForm">
+<p>
+<label for="internalNote">Nytt notat</label><br>
+<textarea id="internalNote" rows="5" maxlength="5000"></textarea>
+</p>
+<button type="submit">Lagre notat</button>
+</form>
+
+<div id="noteList"></div>
+</section>
+
+<section aria-labelledby="automationHeading">
+<h2 id="automationHeading">Automatiske utsendelser</h2>
+<p>Her setter du opp invitasjoner og påminnelser som kjøres automatisk.</p>
+
+<form id="automationForm">
+<p>
+<label for="automationType">Type utsendelse</label><br>
+<select id="automationType">
+<option value="invitation">Invitasjon til aktive personer</option>
+<option value="pending_reminder">Påminnelse til de som ikke har svart</option>
+<option value="attending_reminder">Påminnelse til påmeldte</option>
+</select>
+</p>
+
+<p>
+<label for="automationDays">Antall dager før arrangementet</label><br>
+<select id="automationDays"></select>
+</p>
+
+<p>
+<label for="automationHour">Klokkeslett</label><br>
+<select id="automationHour"></select>
+</p>
+
+<p>
+<label for="automationChannel">Kanal</label><br>
+<select id="automationChannel">
+<option value="sms">SMS</option>
+<option value="email">E-post</option>
+<option value="both">SMS og e-post</option>
+</select>
+</p>
+
+<p><label><input id="automationReply" type="checkbox"> SMS skal være svarbar</label></p>
+
+<p>
+<label for="automationSubject">E-postemne</label><br>
+<input id="automationSubject" type="text" maxlength="200">
+</p>
+
+<p>
+<label for="automationMessage">Melding</label><br>
+<textarea id="automationMessage" rows="8" maxlength="10000"></textarea>
+</p>
+
+<button type="submit">Lagre automatisk utsendelse</button>
+</form>
+
+<table>
+<caption>Planlagte automatiske utsendelser</caption>
+<thead>
+<tr><th>Type</th><th>Når</th><th>Kanal</th><th>Status</th><th>Handling</th></tr>
+</thead>
+<tbody id="automationRows"></tbody>
+</table>
+</section>
+
+<section aria-labelledby="replyHeading">
+<h2 id="replyHeading">SMS-svar til dette arrangementet</h2>
+<button type="button" id="refreshRepliesBtn">Oppdater SMS-svar</button>
+<table>
+<caption>SMS-svar for arrangementet</caption>
+<thead>
+<tr><th>Tid</th><th>Person</th><th>Telefon</th><th>Svar</th><th>Automatikk</th><th>Registrer</th></tr>
+</thead>
+<tbody id="replyRows"></tbody>
+</table>
+</section>
+
+<section class="danger" aria-labelledby="deleteHeading">
+<h2 id="deleteHeading">Permanent sletting</h2>
+<p>Permanent sletting er bare tilgjengelig for systemadministrator.</p>
+<button id="deleteBtn" type="button">Slett arrangement permanent</button>
+</section>
+</main>
+
 <script>
-const eventId=new URLSearchParams(location.search).get("id");let me=null,authUser=null,currentEvent=null,people=[],roles=[],participants=[];
-const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-const pStatus=v=>({pending:"Avventer",attending:"Påmeldt",declined:"Avmeldt"}[v]||v);
-function phone(v){let n=String(v||"").replace(/[^\d+]/g,"");if(n.startsWith("+47"))n=n.slice(3);else if(n.startsWith("0047"))n=n.slice(4);return /^\d{8}$/.test(n)?n:null;}function mail(v){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||"").trim());}
-async function loadEvent(){const {data,error}=await sb.from("events").select("*").eq("id",eventId).single();if(error)throw error;currentEvent=data;eventHeading.textContent=data.title;editLink.href="event-edit.html?id="+encodeURIComponent(eventId);details.innerHTML=`<dt>Dato</dt><dd>${esc(norwegianDate(data.event_date))}${data.end_date&&data.end_date!==data.event_date?"–"+esc(norwegianDate(data.end_date)):""}</dd><dt>Tid</dt><dd>${esc(norwegianTime(data.start_time))}${data.end_time?"–"+esc(norwegianTime(data.end_time)):""}</dd><dt>Sted</dt><dd>${esc(data.location||"Ikke angitt")}</dd><dt>Status</dt><dd>${esc(eventStatusText(data.status))}</dd><dt>Påmeldingsfrist</dt><dd>${esc(data.registration_deadline?norwegianDate(data.registration_deadline):"Ingen")}</dd><dt>Beskrivelse</dt><dd>${esc(data.description||"Ingen beskrivelse")}</dd>`;cancelBtn.hidden=data.status==="cancelled";restoreBtn.hidden=data.status!=="cancelled";}
-async function loadPeople(){let {data,error}=await sb.from("persons").select("id,full_name,email,phone,membership_status,person_roles(is_active,roles(id,name))").order("full_name");if(error)throw error;people=data||[];({data,error}=await sb.from("roles").select("id,name").order("name"));if(error)throw error;roles=data||[];const opts=people.map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");personSelect.innerHTML=opts;audiencePerson.innerHTML=opts;audienceRole.innerHTML=roles.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join("");selectedPerson();}
-function selectedPerson(){const p=people.find(x=>x.id===personSelect.value);selectedParticipant.textContent=p?`Valgt person: ${p.full_name}.`:"Ingen person valgt.";}
-async function loadParticipants(){const {data,error}=await sb.from("event_participants").select("id,person_id,status,guest_count,note,persons(full_name)").eq("event_id",eventId).order("created_at");if(error)throw error;participants=data||[];const attending=participants.filter(r=>r.status==="attending"),total=attending.reduce((a,r)=>a+1+Number(r.guest_count||0),0);participantSummary.textContent=`${participants.length} registrerte svar. ${attending.length} påmeldte personer, totalt ${total} personer inkludert ekstra deltakere.`;participantRows.innerHTML=participants.map(r=>`<tr><td>${esc(r.persons?.full_name||"Ukjent person")}</td><td>${esc(pStatus(r.status))}</td><td>${esc(r.guest_count||0)}</td><td>${esc(r.note||"")}</td><td><button type="button" data-edit="${r.person_id}" data-status="${r.status}" data-guests="${r.guest_count||0}" data-note="${esc(r.note||"")}">Rediger</button><button type="button" data-remove="${r.id}">Fjern</button></td></tr>`).join("")||`<tr><td colspan="5">Ingen deltakere registrert ennå.</td></tr>`;participantRows.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{personSelect.value=b.dataset.edit;participantStatus.value=b.dataset.status;guestCount.value=b.dataset.guests;participantNote.value=b.dataset.note||"";selectedPerson();});participantRows.querySelectorAll("[data-remove]").forEach(b=>b.onclick=async()=>{if(!confirm("Fjerne denne deltakeren fra arrangementet?"))return;const {error}=await sb.from("event_participants").delete().eq("id",b.dataset.remove);if(error)return announce("Kunne ikke fjerne deltaker: "+error.message);await loadParticipants();updateAudience();});}
-function audience(){if(audienceMode.value==="all")return people.filter(p=>p.membership_status==="active");if(audienceMode.value==="person"){const p=people.find(x=>x.id===audiencePerson.value);return p?[p]:[];}if(audienceMode.value==="role"){const id=audienceRole.value;return people.filter(p=>p.membership_status==="active"&&(p.person_roles||[]).some(pr=>pr.is_active&&pr.roles?.id===id));}if(audienceMode.value==="pending"){const ids=new Set(participants.filter(x=>x.status==="pending").map(x=>x.person_id));return people.filter(p=>ids.has(p.id));}return [];}
-function updateAudience(){audienceRoleWrap.hidden=audienceMode.value!=="role";audiencePersonWrap.hidden=audienceMode.value!=="person";const a=audience();audienceStatus.textContent=`${a.length} personer i målgruppen. ${a.filter(p=>mail(p.email)).length} med gyldig e-post, ${a.filter(p=>phone(p.phone)).length} med gyldig mobilnummer.`;}
-function fillSuggestion(){const d=norwegianDate(currentEvent.event_date)+(currentEvent.end_date&&currentEvent.end_date!==currentEvent.event_date?" til "+norwegianDate(currentEvent.end_date):"");const t=norwegianTime(currentEvent.start_time)+(currentEvent.end_time?"–"+norwegianTime(currentEvent.end_time):"");communicationSubject.value=`Invitasjon: ${currentEvent.title}`;communicationMessage.value=`Hei!\n\nDu inviteres til ${currentEvent.title}.\n\nDato: ${d}\nTid: ${t}\nSted: ${currentEvent.location||"Se beskrivelsen"}\n\n${currentEvent.description||""}\n\n${currentEvent.registration_deadline?"Påmeldingsfrist: "+norwegianDate(currentEvent.registration_deadline):""}\n\nSvar gjerne på SMS-en dersom den er sendt som svarbar SMS.\n\nVennlig hilsen\nOslo Førerhundklubb`;}
-const emailRecipients=a=>{const seen=new Set();return a.filter(p=>mail(p.email)).map(p=>({email:p.email.trim().toLowerCase(),personId:p.id,name:p.full_name})).filter(r=>!seen.has(r.email)&&seen.add(r.email));};const smsRecipients=a=>{const seen=new Set();return a.map(p=>({phone:phone(p.phone),personId:p.id,name:p.full_name})).filter(r=>r.phone).filter(r=>!seen.has(r.phone)&&seen.add(r.phone));};
-async function sendCommunication(test){if(!sendEmailCheck.checked&&!sendSmsCheck.checked)return announce("Velg minst én kanal.");const msg=communicationMessage.value.trim();if(!msg)return announce("Meldingsteksten mangler.");let a=audience();if(test){const p=people.find(p=>authUser?.email&&p.email?.toLowerCase()===authUser.email.toLowerCase());a=p?[p]:[];}if(!test&&!a.length)return announce("Målgruppen er tom.");if(!test&&!confirm(`Sende til ${a.length} person(er)?`))return;const out=[];communicationResult.textContent="Sender …";if(sendEmailCheck.checked){const rec=test&&authUser?.email?[{email:authUser.email,personId:null,name:"Test"}]:emailRecipients(a);if(!rec.length)out.push("E-post: ingen gyldige mottakere.");else{const {data,error}=await sb.functions.invoke("send-email",{body:{recipients:rec,subject:communicationSubject.value.trim()||`Invitasjon: ${currentEvent.title}`,text:msg,attachments:calendarCheck.checked?[eventIcsAttachment(currentEvent)]:[],test,eventId}});out.push(error?"E-post feilet: "+error.message:`E-post: sendt ${data.sent||0}, feilet ${data.failed||0}.`);}}if(sendSmsCheck.checked){const rec=smsRecipients(a);if(!rec.length)out.push("SMS: ingen gyldige mottakere.");else{const {data,error}=await sb.functions.invoke("send-sms",{body:{recipients:rec,message:msg,reply:true,test,eventId}});out.push(error?"SMS feilet: "+error.message:`SMS: ${test?"test godkjent":"sendt"} til ${data.recipients||rec.length}.`);}}communicationResult.textContent=out.join(" ");announce(communicationResult.textContent);}
-async function loadReplies(){const {data,error}=await sb.from("sms_replies").select("id,phone,message,received_at,matched_person_id,interpreted_action,auto_processed,processing_note,persons:matched_person_id(full_name)").eq("event_id",eventId).order("received_at",{ascending:false}).limit(100);if(error){replyRows.innerHTML=`<tr><td colspan="5">${esc(error.message)}</td></tr>`;return;}replyRows.innerHTML=(data||[]).map(r=>`<tr><td>${esc(new Date(r.received_at).toLocaleString("nb-NO"))}</td><td>${esc(r.persons?.full_name||"Ikke matchet")}</td><td>${esc(r.phone)}</td><td>${esc(r.message)}</td><td>${r.matched_person_id?`<button type="button" data-rp="${r.matched_person_id}" data-rs="attending">Påmeldt</button><button type="button" data-rp="${r.matched_person_id}" data-rs="declined">Avmeldt</button>`:"Ingen personmatch"}</td></tr>`).join("")||`<tr><td colspan="5">Ingen SMS-svar koblet til arrangementet ennå.</td></tr>`;replyRows.querySelectorAll("[data-rp]").forEach(b=>b.onclick=async()=>{const {error}=await sb.from("event_participants").upsert({event_id:eventId,person_id:b.dataset.rp,status:b.dataset.rs,guest_count:0,note:"Registrert fra SMS-svar"},{onConflict:"event_id,person_id"});if(error)return announce("Kunne ikke registrere SMS-svaret: "+error.message);await loadParticipants();updateAudience();announce(b.dataset.rs==="attending"?"Registrert som påmeldt.":"Registrert som avmeldt.");});}
-participantForm.onsubmit=async e=>{e.preventDefault();const {error}=await sb.from("event_participants").upsert({event_id:eventId,person_id:personSelect.value,status:participantStatus.value,guest_count:Number(guestCount.value),note:participantNote.value.trim()||null},{onConflict:"event_id,person_id"});if(error)return announce("Kunne ikke lagre deltaker: "+error.message);participantNote.value="";guestCount.value="0";participantStatus.value="pending";await loadParticipants();updateAudience();announce("Deltakeren er lagret.");};personSelect.onchange=selectedPerson;audienceMode.onchange=updateAudience;audienceRole.onchange=updateAudience;audiencePerson.onchange=updateAudience;fillSuggestionBtn.onclick=fillSuggestion;testCommunicationBtn.onclick=()=>sendCommunication(true);sendCommunicationBtn.onclick=()=>sendCommunication(false);refreshRepliesBtn.onclick=loadReplies;
-cancelBtn.onclick=async()=>{if(!confirm("Vil du avlyse arrangementet?"))return;const {error}=await sb.from("events").update({status:"cancelled"}).eq("id",eventId);if(error)return announce(error.message);await loadEvent();fillSuggestion();announce("Arrangementet er avlyst.");};restoreBtn.onclick=async()=>{const {error}=await sb.from("events").update({status:"planned"}).eq("id",eventId);if(error)return announce(error.message);await loadEvent();fillSuggestion();announce("Arrangementet er gjenåpnet.");};deleteBtn.onclick=async()=>{if(me?.app_role!=="system_admin")return announce("Bare systemadministrator kan slette permanent.");if(!confirm("Slette arrangementet permanent?"))return;if(!confirm("Bekreft permanent sletting én gang til."))return;const {error}=await sb.from("events").delete().eq("id",eventId);if(error)return announce(error.message);location.href="events.html";};
-(async()=>{await requireSession();const {data:{user}}=await sb.auth.getUser();authUser=user;me=await getCurrentAppUser();await loadEvent();await loadPeople();await loadParticipants();updateAudience();fillSuggestion();await loadReplies();if(me?.app_role!=="system_admin")deleteBtn.hidden=true;announce("Arrangementet er klart.");})();
-</script></body></html>
+const eventId = new URLSearchParams(location.search).get("id");
+
+let me = null;
+let authUser = null;
+let currentEvent = null;
+let people = [];
+let roles = [];
+let participants = [];
+let associatedPeople = [];
+let automationRules = [];
+
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({
+  "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+}[c]));
+
+const pStatus = v => ({
+  pending:"Avventer",
+  attending:"Påmeldt",
+  declined:"Avmeldt"
+}[v] || v);
+
+function phone(v) {
+  let n = String(v || "").replace(/[^\d+]/g,"");
+  if (n.startsWith("+47")) n = n.slice(3);
+  else if (n.startsWith("0047")) n = n.slice(4);
+  return /^\d{8}$/.test(n) ? n : null;
+}
+
+function mail(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
+}
+
+async function loadEvent() {
+  const {data,error} = await sb.from("events").select("*").eq("id",eventId).single();
+  if (error) throw error;
+  currentEvent = data;
+
+  eventHeading.textContent = data.title;
+  editLink.href = "event-edit.html?id=" + encodeURIComponent(eventId);
+
+  details.innerHTML = `
+    <dt>Dato</dt><dd>${esc(norwegianDate(data.event_date))}${data.end_date && data.end_date !== data.event_date ? "–" + esc(norwegianDate(data.end_date)) : ""}</dd>
+    <dt>Tid</dt><dd>${esc(norwegianTime(data.start_time))}${data.end_time ? "–" + esc(norwegianTime(data.end_time)) : ""}</dd>
+    <dt>Sted</dt><dd>${esc(data.location || "Ikke angitt")}</dd>
+    <dt>Status</dt><dd>${esc(eventStatusText(data.status))}</dd>
+    <dt>Påmeldingsfrist</dt><dd>${esc(data.registration_deadline ? norwegianDate(data.registration_deadline) : "Ingen")}</dd>
+    <dt>Beskrivelse</dt><dd>${esc(data.description || "Ingen beskrivelse")}</dd>
+  `;
+
+  cancelBtn.hidden = data.status === "cancelled";
+  restoreBtn.hidden = data.status !== "cancelled";
+}
+
+async function loadPeople() {
+  let {data,error} = await sb
+    .from("persons")
+    .select("id,full_name,email,phone,membership_status,person_roles(is_active,roles(id,name))")
+    .order("full_name");
+
+  if (error) throw error;
+  people = data || [];
+
+  ({data,error} = await sb.from("roles").select("id,name").order("name"));
+  if (error) throw error;
+  roles = data || [];
+
+  const personOptions = people
+    .map(p => `<option value="${p.id}">${esc(p.full_name)}</option>`)
+    .join("");
+
+  personSelect.innerHTML = `<option value="">Ingen valgt</option>` + personOptions;
+  audiencePerson.innerHTML = `<option value="">Ingen valgt</option>` + personOptions;
+  associatedPerson.innerHTML = `<option value="">Ingen valgt</option>` + personOptions;
+
+  audienceRole.innerHTML =
+    `<option value="">Ingen valgt</option>` +
+    roles.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join("");
+
+  selectedPerson();
+}
+
+function selectedPerson() {
+  const p = people.find(x => x.id === personSelect.value);
+  selectedParticipant.textContent = p
+    ? `Valgt person: ${p.full_name}.`
+    : "Ingen person valgt.";
+}
+
+async function loadParticipants() {
+  const {data,error} = await sb
+    .from("event_participants")
+    .select("id,person_id,status,guest_count,note,persons(full_name,email,phone)")
+    .eq("event_id",eventId)
+    .order("created_at");
+
+  if (error) throw error;
+  participants = data || [];
+
+  const attending = participants.filter(r => r.status === "attending");
+  const total = attending.reduce((a,r) => a + 1 + Number(r.guest_count || 0), 0);
+
+  participantSummary.textContent =
+    `${participants.length} registrerte svar. ${attending.length} påmeldte personer, totalt ${total} personer inkludert ekstra deltakere.`;
+
+  participantRows.innerHTML = participants.map(r => `
+    <tr>
+      <td>${esc(r.persons?.full_name || "Ukjent person")}</td>
+      <td>${esc(pStatus(r.status))}</td>
+      <td>${esc(r.guest_count || 0)}</td>
+      <td>${esc(r.note || "")}</td>
+      <td>
+        <button type="button" data-edit="${r.person_id}" data-status="${r.status}" data-guests="${r.guest_count || 0}" data-note="${esc(r.note || "")}">Rediger</button>
+        <button type="button" data-remove="${r.id}">Fjern</button>
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">Ingen deltakere registrert ennå.</td></tr>`;
+
+  participantRows.querySelectorAll("[data-edit]").forEach(b => {
+    b.onclick = () => {
+      personSelect.value = b.dataset.edit;
+      participantStatus.value = b.dataset.status;
+      guestCount.value = b.dataset.guests;
+      participantNote.value = b.dataset.note || "";
+      selectedPerson();
+    };
+  });
+
+  participantRows.querySelectorAll("[data-remove]").forEach(b => {
+    b.onclick = async () => {
+      if (!confirm("Fjerne denne deltakeren fra arrangementet?")) return;
+      const {error} = await sb.from("event_participants").delete().eq("id",b.dataset.remove);
+      if (error) return announce("Kunne ikke fjerne deltaker: " + error.message);
+      await loadParticipants();
+      await loadAttendees();
+      updateAudience();
+      announce("Deltakeren er fjernet.");
+    };
+  });
+}
+
+async function loadAttendees() {
+  const attending = participants.filter(r => r.status === "attending");
+  const total = attending.reduce((a,r) => a + 1 + Number(r.guest_count || 0), 0);
+
+  attendeeSummary.textContent =
+    `${attending.length} påmeldte personer, totalt ${total} personer inkludert ekstra deltakere.`;
+
+  attendeeRows.innerHTML = attending.map(r => `
+    <tr>
+      <td>${esc(r.persons?.full_name || "")}</td>
+      <td>${esc(r.persons?.phone || "")}</td>
+      <td>${esc(r.persons?.email || "")}</td>
+      <td>${esc(r.guest_count || 0)}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="4">Ingen påmeldte ennå.</td></tr>`;
+}
+
+function csvEscape(v) {
+  return `"${String(v ?? "").replace(/"/g,'""')}"`;
+}
+
+function exportAttendees() {
+  const attending = participants.filter(r => r.status === "attending");
+
+  const lines = [
+    ["Navn","Telefon","E-post","Ekstra deltakere","Notat"].map(csvEscape).join(";")
+  ];
+
+  for (const r of attending) {
+    lines.push([
+      r.persons?.full_name || "",
+      r.persons?.phone || "",
+      r.persons?.email || "",
+      r.guest_count || 0,
+      r.note || ""
+    ].map(csvEscape).join(";"));
+  }
+
+  const blob = new Blob(["\uFEFF" + lines.join("\r\n")], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(currentEvent.title || "arrangement").replace(/[^\p{L}\p{N}_-]+/gu,"_")}_pameldte.csv`;
+  document.body.appendChild(a);
+  a.click();
+  const href = a.href;
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(href),1000);
+  announce("Deltakerlisten er eksportert som CSV for Excel.");
+}
+
+async function loadAssociatedPeople() {
+  const {data,error} = await sb
+    .from("event_people")
+    .select("id,person_id,function_name,note,persons(full_name,email,phone)")
+    .eq("event_id",eventId)
+    .order("function_name")
+    .order("created_at");
+
+  if (error) {
+    associatedRows.innerHTML = `<tr><td colspan="5">${esc(error.message)}</td></tr>`;
+    return;
+  }
+
+  associatedPeople = data || [];
+
+  associatedRows.innerHTML = associatedPeople.map(r => `
+    <tr>
+      <td>${esc(r.persons?.full_name || "")}</td>
+      <td>${esc(r.function_name)}</td>
+      <td>${esc(r.persons?.phone || "")}</td>
+      <td>${esc(r.persons?.email || "")}</td>
+      <td><button type="button" data-associated-remove="${r.id}">Fjern</button></td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">Ingen tilknyttede personer ennå.</td></tr>`;
+
+  associatedRows.querySelectorAll("[data-associated-remove]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Fjerne denne personen fra arrangementet?")) return;
+      const {error} = await sb.from("event_people").delete().eq("id",btn.dataset.associatedRemove);
+      if (error) return announce("Kunne ikke fjerne personen: " + error.message);
+      await loadAssociatedPeople();
+      updateAudience();
+      announce("Personen er fjernet.");
+    };
+  });
+}
+
+async function loadNotes() {
+  const {data,error} = await sb
+    .from("event_notes")
+    .select("id,note,created_at")
+    .eq("event_id",eventId)
+    .order("created_at",{ascending:false});
+
+  if (error) {
+    noteList.innerHTML = `<p>${esc(error.message)}</p>`;
+    return;
+  }
+
+  noteList.innerHTML = (data || []).map(n => `
+    <article>
+      <p>${esc(n.note)}</p>
+      <p><small>${esc(new Date(n.created_at).toLocaleString("nb-NO"))}</small></p>
+      <button type="button" data-note-delete="${n.id}">Slett notat</button>
+    </article>
+  `).join("") || "<p>Ingen interne notater ennå.</p>";
+
+  noteList.querySelectorAll("[data-note-delete]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Slette dette notatet?")) return;
+      const {error} = await sb.from("event_notes").delete().eq("id",btn.dataset.noteDelete);
+      if (error) return announce("Kunne ikke slette notatet: " + error.message);
+      await loadNotes();
+      announce("Notatet er slettet.");
+    };
+  });
+}
+
+function audience() {
+  if (audienceMode.value === "all")
+    return people.filter(p => p.membership_status === "active");
+
+  if (audienceMode.value === "person") {
+    const p = people.find(x => x.id === audiencePerson.value);
+    return p ? [p] : [];
+  }
+
+  if (audienceMode.value === "role") {
+    const id = audienceRole.value;
+    if (!id) return [];
+    return people.filter(p =>
+      p.membership_status === "active" &&
+      (p.person_roles || []).some(pr => pr.is_active && pr.roles?.id === id)
+    );
+  }
+
+  if (audienceMode.value === "pending") {
+    const statuses = new Map(participants.map(x => [x.person_id,x.status]));
+    return people.filter(p =>
+      p.membership_status === "active" &&
+      (!statuses.has(p.id) || statuses.get(p.id) === "pending")
+    );
+  }
+
+  if (audienceMode.value === "attending") {
+    const ids = new Set(participants.filter(x => x.status === "attending").map(x => x.person_id));
+    return people.filter(p => ids.has(p.id));
+  }
+
+  if (audienceMode.value === "associated") {
+    const ids = new Set(associatedPeople.map(x => x.person_id));
+    return people.filter(p => ids.has(p.id));
+  }
+
+  if (audienceMode.value === "function") {
+    if (!audienceFunction.value) return [];
+    const ids = new Set(
+      associatedPeople
+        .filter(x => x.function_name === audienceFunction.value)
+        .map(x => x.person_id)
+    );
+    return people.filter(p => ids.has(p.id));
+  }
+
+  return [];
+}
+
+function updateAudience() {
+  audienceRoleWrap.hidden = audienceMode.value !== "role";
+  audiencePersonWrap.hidden = audienceMode.value !== "person";
+  audienceFunctionWrap.hidden = audienceMode.value !== "function";
+
+  const a = audience();
+  audienceStatus.textContent =
+    `${a.length} personer i målgruppen. ${a.filter(p => mail(p.email)).length} med gyldig e-post, ${a.filter(p => phone(p.phone)).length} med gyldig mobilnummer.`;
+}
+
+function fillSuggestion() {
+  const d = norwegianDate(currentEvent.event_date) +
+    (currentEvent.end_date && currentEvent.end_date !== currentEvent.event_date
+      ? " til " + norwegianDate(currentEvent.end_date) : "");
+
+  const t = norwegianTime(currentEvent.start_time) +
+    (currentEvent.end_time ? "–" + norwegianTime(currentEvent.end_time) : "");
+
+  communicationSubject.value = `Invitasjon: ${currentEvent.title}`;
+  communicationMessage.value =
+`Hei!
+
+Du inviteres til ${currentEvent.title}.
+
+Dato: ${d}
+Tid: ${t}
+Sted: ${currentEvent.location || "Se beskrivelsen"}
+
+${currentEvent.description || ""}
+
+${currentEvent.registration_deadline ? "Påmeldingsfrist: " + norwegianDate(currentEvent.registration_deadline) : ""}
+
+Vennlig hilsen
+Oslo Førerhundklubb`;
+}
+
+const emailRecipients = a => {
+  const seen = new Set();
+  return a
+    .filter(p => mail(p.email))
+    .map(p => ({email:p.email.trim().toLowerCase(),personId:p.id,name:p.full_name}))
+    .filter(r => {
+      if (seen.has(r.email)) return false;
+      seen.add(r.email);
+      return true;
+    });
+};
+
+const smsRecipients = a => {
+  const seen = new Set();
+  return a
+    .map(p => ({phone:phone(p.phone),personId:p.id,name:p.full_name}))
+    .filter(r => r.phone)
+    .filter(r => {
+      if (seen.has(r.phone)) return false;
+      seen.add(r.phone);
+      return true;
+    });
+};
+
+async function sendCommunication(test) {
+  if (!sendEmailCheck.checked && !sendSmsCheck.checked)
+    return announce("Velg minst én kanal.");
+
+  const msg = communicationMessage.value.trim();
+  if (!msg) return announce("Meldingsteksten mangler.");
+
+  let a = audience();
+
+  if (test) {
+    const p = people.find(p =>
+      authUser?.email && p.email?.toLowerCase() === authUser.email.toLowerCase()
+    );
+    a = p ? [p] : [];
+  }
+
+  if (!test && !a.length) return announce("Målgruppen er tom.");
+  if (!test && !confirm(`Sende til ${a.length} person(er)?`)) return;
+
+  const out = [];
+  communicationResult.textContent = "Sender …";
+
+  if (sendEmailCheck.checked) {
+    const rec = test && authUser?.email
+      ? [{email:authUser.email,personId:null,name:"Test"}]
+      : emailRecipients(a);
+
+    if (!rec.length) {
+      out.push("E-post: ingen gyldige mottakere.");
+    } else {
+      const {data,error} = await sb.functions.invoke("send-email", {
+        body:{
+          recipients:rec,
+          subject:communicationSubject.value.trim() || `Invitasjon: ${currentEvent.title}`,
+          text:msg,
+          attachments:calendarCheck.checked ? [eventIcsAttachment(currentEvent)] : [],
+          test,
+          eventId
+        }
+      });
+
+      out.push(error
+        ? "E-post feilet: " + error.message
+        : `E-post: sendt ${data.sent || 0}, feilet ${data.failed || 0}.`);
+    }
+  }
+
+  if (sendSmsCheck.checked) {
+    const rec = smsRecipients(a);
+
+    if (!rec.length) {
+      out.push("SMS: ingen gyldige mottakere.");
+    } else {
+      const {data,error} = await sb.functions.invoke("send-sms", {
+        body:{
+          recipients:rec,
+          message:msg,
+          reply:smsReplyCheck.checked,
+          test,
+          eventId
+        }
+      });
+
+      out.push(error
+        ? "SMS feilet: " + error.message
+        : `SMS: ${test ? "test godkjent" : "sendt"} til ${data.recipients || rec.length}.`);
+    }
+  }
+
+  communicationResult.textContent = out.join(" ");
+  announce(communicationResult.textContent);
+}
+
+function automationTypeText(v) {
+  return ({
+    invitation:"Invitasjon",
+    pending_reminder:"Påminnelse til de som ikke har svart",
+    attending_reminder:"Påminnelse til påmeldte"
+  })[v] || v;
+}
+
+function automationChannelText(v) {
+  return ({sms:"SMS",email:"E-post",both:"SMS og e-post"})[v] || v;
+}
+
+function initAutomationControls() {
+  automationDays.innerHTML = "";
+  for (let d = 0; d <= 60; d++) {
+    automationDays.insertAdjacentHTML("beforeend", `<option value="${d}">${d}</option>`);
+  }
+  automationDays.value = "7";
+
+  automationHour.innerHTML = "";
+  for (let h = 0; h < 24; h++) {
+    const hh = String(h).padStart(2,"0");
+    automationHour.insertAdjacentHTML("beforeend", `<option value="${h}">${hh}:00</option>`);
+  }
+  automationHour.value = "18";
+}
+
+async function loadAutomationRules() {
+  const {data,error} = await sb
+    .from("event_automation_rules")
+    .select("*")
+    .eq("event_id",eventId)
+    .order("days_before",{ascending:false});
+
+  if (error) {
+    automationRows.innerHTML = `<tr><td colspan="5">${esc(error.message)}</td></tr>`;
+    return;
+  }
+
+  automationRules = data || [];
+
+  automationRows.innerHTML = automationRules.map(r => `
+    <tr>
+      <td>${esc(automationTypeText(r.rule_type))}</td>
+      <td>${esc(r.days_before)} dager før kl. ${String(r.send_hour).padStart(2,"0")}:00</td>
+      <td>${esc(automationChannelText(r.channel))}</td>
+      <td>${r.enabled ? (r.last_sent_at ? "Sendt" : "Aktiv") : "Av"}</td>
+      <td>
+        <button type="button" data-auto-toggle="${r.id}" data-enabled="${r.enabled}">${r.enabled ? "Deaktiver" : "Aktiver"}</button>
+        <button type="button" data-auto-delete="${r.id}">Slett</button>
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">Ingen automatiske utsendelser konfigurert.</td></tr>`;
+
+  automationRows.querySelectorAll("[data-auto-toggle]").forEach(btn => {
+    btn.onclick = async () => {
+      const enabled = btn.dataset.enabled === "true";
+      const {error} = await sb
+        .from("event_automation_rules")
+        .update({enabled:!enabled,last_sent_at:null})
+        .eq("id",btn.dataset.autoToggle);
+
+      if (error) return announce("Kunne ikke endre regelen: " + error.message);
+      await loadAutomationRules();
+      announce("Automatisk utsendelse er oppdatert.");
+    };
+  });
+
+  automationRows.querySelectorAll("[data-auto-delete]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Slette denne automatiske utsendelsen?")) return;
+      const {error} = await sb.from("event_automation_rules").delete().eq("id",btn.dataset.autoDelete);
+      if (error) return announce("Kunne ikke slette regelen: " + error.message);
+      await loadAutomationRules();
+      announce("Automatisk utsendelse er slettet.");
+    };
+  });
+}
+
+async function loadReplies() {
+  const {data,error} = await sb
+    .from("sms_replies")
+    .select("id,phone,message,received_at,matched_person_id,interpreted_action,auto_processed,processing_note,persons:matched_person_id(full_name)")
+    .eq("event_id",eventId)
+    .order("received_at",{ascending:false})
+    .limit(100);
+
+  if (error) {
+    replyRows.innerHTML = `<tr><td colspan="6">${esc(error.message)}</td></tr>`;
+    return;
+  }
+
+  replyRows.innerHTML = (data || []).map(r => `
+    <tr>
+      <td>${esc(new Date(r.received_at).toLocaleString("nb-NO"))}</td>
+      <td>${esc(r.persons?.full_name || "Ikke matchet")}</td>
+      <td>${esc(r.phone)}</td>
+      <td>${esc(r.message)}</td>
+      <td>${esc(r.auto_processed
+        ? (r.interpreted_action === "attending" ? "Automatisk påmeldt" : "Automatisk avmeldt")
+        : (r.processing_note || "Ikke behandlet automatisk"))}</td>
+      <td>${r.matched_person_id
+        ? `<button type="button" data-rp="${r.matched_person_id}" data-rs="attending">Påmeldt</button>
+           <button type="button" data-rp="${r.matched_person_id}" data-rs="declined">Avmeldt</button>`
+        : "Ingen personmatch"}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">Ingen SMS-svar koblet til arrangementet ennå.</td></tr>`;
+
+  replyRows.querySelectorAll("[data-rp]").forEach(b => {
+    b.onclick = async () => {
+      const {error} = await sb.from("event_participants").upsert({
+        event_id:eventId,
+        person_id:b.dataset.rp,
+        status:b.dataset.rs,
+        guest_count:0,
+        note:"Registrert fra SMS-svar"
+      }, {onConflict:"event_id,person_id"});
+
+      if (error) return announce("Kunne ikke registrere SMS-svaret: " + error.message);
+
+      await loadParticipants();
+      await loadAttendees();
+      updateAudience();
+      announce(b.dataset.rs === "attending" ? "Registrert som påmeldt." : "Registrert som avmeldt.");
+    };
+  });
+}
+
+participantForm.onsubmit = async e => {
+  e.preventDefault();
+
+  if (!personSelect.value) {
+    announce("Velg en person først.");
+    personSelect.focus();
+    return;
+  }
+
+  const {error} = await sb.from("event_participants").upsert({
+    event_id:eventId,
+    person_id:personSelect.value,
+    status:participantStatus.value,
+    guest_count:Number(guestCount.value),
+    note:participantNote.value.trim() || null
+  }, {onConflict:"event_id,person_id"});
+
+  if (error) return announce("Kunne ikke lagre deltaker: " + error.message);
+
+  personSelect.value = "";
+  selectedPerson();
+  participantNote.value = "";
+  guestCount.value = "0";
+  participantStatus.value = "pending";
+
+  await loadParticipants();
+  await loadAttendees();
+  updateAudience();
+  announce("Deltakeren er lagret.");
+};
+
+associatedPerson.onchange = () => {
+  const p = people.find(x => x.id === associatedPerson.value);
+  associatedPersonStatus.textContent = p
+    ? `Valgt person: ${p.full_name}.`
+    : "Ingen person valgt.";
+};
+
+associatedForm.onsubmit = async e => {
+  e.preventDefault();
+
+  if (!associatedPerson.value) return announce("Velg en person.");
+  if (!associatedFunction.value) return announce("Velg funksjon.");
+
+  const {error} = await sb.from("event_people").upsert({
+    event_id:eventId,
+    person_id:associatedPerson.value,
+    function_name:associatedFunction.value,
+    note:associatedNote.value.trim() || null
+  }, {onConflict:"event_id,person_id,function_name"});
+
+  if (error) return announce("Kunne ikke legge til personen: " + error.message);
+
+  associatedPerson.value = "";
+  associatedFunction.value = "";
+  associatedNote.value = "";
+  associatedPersonStatus.textContent = "Ingen person valgt.";
+
+  await loadAssociatedPeople();
+  updateAudience();
+  announce("Tilknyttet person er lagret.");
+};
+
+noteForm.onsubmit = async e => {
+  e.preventDefault();
+  const note = internalNote.value.trim();
+  if (!note) return announce("Notatet er tomt.");
+
+  const {error} = await sb.from("event_notes").insert({
+    event_id:eventId,
+    note
+  });
+
+  if (error) return announce("Kunne ikke lagre notatet: " + error.message);
+
+  internalNote.value = "";
+  await loadNotes();
+  announce("Notatet er lagret.");
+};
+
+automationType.onchange = () => {
+  if (automationType.value === "invitation") {
+    automationDays.value = "7";
+    automationReply.checked = true;
+    automationSubject.value = `Invitasjon: ${currentEvent?.title || ""}`;
+  } else if (automationType.value === "pending_reminder") {
+    automationDays.value = "2";
+    automationReply.checked = true;
+    automationSubject.value = `Påminnelse: ${currentEvent?.title || ""}`;
+  } else {
+    automationDays.value = "1";
+    automationReply.checked = false;
+    automationSubject.value = `Husk: ${currentEvent?.title || ""}`;
+  }
+};
+
+automationForm.onsubmit = async e => {
+  e.preventDefault();
+
+  const msg = automationMessage.value.trim();
+  if (!msg) return announce("Meldingsteksten mangler.");
+
+  const {error} = await sb.from("event_automation_rules").upsert({
+    event_id:eventId,
+    rule_type:automationType.value,
+    days_before:Number(automationDays.value),
+    send_hour:Number(automationHour.value),
+    channel:automationChannel.value,
+    sms_reply:automationReply.checked,
+    subject:automationSubject.value.trim() || null,
+    message:msg,
+    enabled:true,
+    last_sent_at:null
+  }, {
+    onConflict:"event_id,rule_type,days_before,send_hour"
+  });
+
+  if (error) return announce("Kunne ikke lagre automatisk utsendelse: " + error.message);
+
+  await loadAutomationRules();
+  announce("Automatisk utsendelse er lagret.");
+};
+
+personSelect.onchange = selectedPerson;
+audienceMode.onchange = updateAudience;
+audienceRole.onchange = updateAudience;
+audiencePerson.onchange = updateAudience;
+audienceFunction.onchange = updateAudience;
+
+fillSuggestionBtn.onclick = fillSuggestion;
+testCommunicationBtn.onclick = () => sendCommunication(true);
+sendCommunicationBtn.onclick = () => sendCommunication(false);
+exportAttendeesBtn.onclick = exportAttendees;
+refreshRepliesBtn.onclick = loadReplies;
+
+cancelBtn.onclick = async () => {
+  if (!confirm("Vil du avlyse arrangementet?")) return;
+  const {error} = await sb.from("events").update({status:"cancelled"}).eq("id",eventId);
+  if (error) return announce(error.message);
+  await loadEvent();
+  fillSuggestion();
+  announce("Arrangementet er avlyst.");
+};
+
+restoreBtn.onclick = async () => {
+  const {error} = await sb.from("events").update({status:"planned"}).eq("id",eventId);
+  if (error) return announce(error.message);
+  await loadEvent();
+  fillSuggestion();
+  announce("Arrangementet er gjenåpnet.");
+};
+
+deleteBtn.onclick = async () => {
+  if (me?.app_role !== "system_admin")
+    return announce("Bare systemadministrator kan slette permanent.");
+
+  if (!confirm("Slette arrangementet permanent?")) return;
+  if (!confirm("Bekreft permanent sletting én gang til.")) return;
+
+  const {error} = await sb.from("events").delete().eq("id",eventId);
+  if (error) return announce(error.message);
+
+  location.href = "events.html";
+};
+
+(async () => {
+  try {
+    await requireSession();
+
+    const {data:{user}} = await sb.auth.getUser();
+    authUser = user;
+    me = await getCurrentAppUser();
+
+    await loadEvent();
+    await loadPeople();
+    await loadParticipants();
+    await loadAttendees();
+    await loadAssociatedPeople();
+    await loadNotes();
+
+    initAutomationControls();
+    await loadAutomationRules();
+
+    updateAudience();
+    fillSuggestion();
+    await loadReplies();
+
+    if (me?.app_role !== "system_admin")
+      deleteBtn.hidden = true;
+
+    announce("Arrangementet er klart.");
+  } catch (err) {
+    console.error(err);
+    announce("Kunne ikke laste arrangementet: " + (err?.message || String(err)));
+  }
+})();
+</script>
+</body>
+</html>
