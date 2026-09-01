@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kommunikasjonshistorikk – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header><h1>Kommunikasjonshistorikk</h1></header>
+<nav aria-label="Hovedmeny">
+<a href="admin-dashboard.html">Oversikt</a>
+<a href="members.html">Medlemmer</a>
+<a href="events.html">Arrangementer</a>
+<a href="communication-history.html" aria-current="page">Kommunikasjonshistorikk</a>
+<a href="sms.html">SMS</a>
+<a href="email.html">E-post</a>
+<a href="my-page.html">Min side</a>
+<button type="button" onclick="logout()">Logg ut</button>
+</nav>
+<main>
+<p id="status" class="status" role="status" aria-live="polite">Laster historikk …</p>
+
+<section aria-labelledby="filterHeading">
+<h2 id="filterHeading">Filtrer</h2>
+<form id="filterForm">
+<p><label for="channelFilter">Kanal</label><br>
+<select id="channelFilter">
+<option value="">Alle</option>
+<option value="sms">SMS</option>
+<option value="email">E-post</option>
+<option value="push">Push</option>
+</select></p>
+
+<p><label for="sourceFilter">Type utsendelse</label><br>
+<select id="sourceFilter">
+<option value="">Alle</option>
+<option value="manual">Manuell</option>
+<option value="automatic">Automatisk</option>
+<option value="system">System</option>
+</select></p>
+
+<p><label for="statusFilter">Status</label><br>
+<select id="statusFilter">
+<option value="">Alle</option>
+<option value="sent">Sendt</option>
+<option value="partial">Delvis feilet</option>
+<option value="failed">Feilet</option>
+<option value="pending">Pågår/venter</option>
+</select></p>
+
+<p><label for="eventFilter">Arrangement</label><br>
+<select id="eventFilter"><option value="">Alle arrangementer</option></select></p>
+
+<button type="submit">Bruk filter</button>
+<button id="clearFilter" type="button">Nullstill</button>
+</form>
+</section>
+
+<section aria-labelledby="historyHeading">
+<h2 id="historyHeading">Utsendelser</h2>
+<table>
+<caption>Kommunikasjon sendt fra medlemssystemet</caption>
+<thead>
+<tr>
+<th>Tidspunkt</th><th>Kanal</th><th>Type</th><th>Arrangement</th>
+<th>Målgruppe</th><th>Planlagt</th><th>Sendt</th><th>Feilet</th>
+<th>Status</th><th>Innhold</th>
+</tr>
+</thead>
+<tbody id="historyRows"></tbody>
+</table>
+</section>
+</main>
+<script>
+let events=[];
+
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+function statusText(v){return ({pending:"Pågår/venter",sent:"Sendt",partial:"Delvis feilet",failed:"Feilet",test:"Test"})[v]||v;}
+function sourceText(v){return ({manual:"Manuell",automatic:"Automatisk",system:"System"})[v]||v;}
+function channelText(v){return ({sms:"SMS",email:"E-post",push:"Push"})[v]||v;}
+
+async function loadEvents(){
+  const {data}=await sb.from("events").select("id,title,event_date").order("event_date",{ascending:false}).limit(300);
+  events=data||[];
+  eventFilter.innerHTML='<option value="">Alle arrangementer</option>'+
+    events.map(e=>`<option value="${e.id}">${esc(e.title)}</option>`).join("");
+}
+async function loadHistory(){
+  let q=sb.from("communication_history")
+    .select("id,event_id,source,channel,audience_label,subject,message,recipient_count,sent_count,failed_count,status,created_at,events(title)")
+    .order("created_at",{ascending:false})
+    .limit(300);
+
+  if(channelFilter.value)q=q.eq("channel",channelFilter.value);
+  if(sourceFilter.value)q=q.eq("source",sourceFilter.value);
+  if(statusFilter.value)q=q.eq("status",statusFilter.value);
+  if(eventFilter.value)q=q.eq("event_id",eventFilter.value);
+
+  const {data,error}=await q;
+  if(error){announce("Kunne ikke hente historikken: "+error.message);return;}
+
+  historyRows.innerHTML=(data||[]).map(h=>`
+    <tr>
+      <td>${esc(new Date(h.created_at).toLocaleString("nb-NO"))}</td>
+      <td>${esc(channelText(h.channel))}</td>
+      <td>${esc(sourceText(h.source))}</td>
+      <td>${esc(h.events?.title||"Ikke knyttet til arrangement")}</td>
+      <td>${esc(h.audience_label||"")}</td>
+      <td>${esc(h.recipient_count)}</td>
+      <td>${esc(h.sent_count)}</td>
+      <td>${esc(h.failed_count)}</td>
+      <td>${esc(statusText(h.status))}</td>
+      <td>
+        ${h.subject?`<strong>${esc(h.subject)}</strong><br>`:""}
+        ${esc(h.message||"")}
+      </td>
+    </tr>
+  `).join("")||'<tr><td colspan="10">Ingen utsendelser matcher filteret.</td></tr>';
+
+  announce(`${(data||[]).length} utsendelser vist.`);
+}
+filterForm.onsubmit=e=>{e.preventDefault();loadHistory();};
+clearFilter.onclick=()=>{filterForm.reset();loadHistory();};
+
+(async()=>{
+  await requireSession();
+  const me=await getCurrentAppUser();
+  if(!me||!["admin","system_admin"].includes(me.app_role)){
+    announce("Bare administratorer har tilgang.");return;
+  }
+  await loadEvents();await loadHistory();
+})();
+</script>
+</body>
+</html>

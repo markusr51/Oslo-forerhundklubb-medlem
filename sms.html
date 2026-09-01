@@ -23,6 +23,7 @@
 <a href="new-person.html">Legg til person</a>
 <a href="sms.html" aria-current="page">SMS</a>
 <a href="email.html">E-post</a>
+<a href="communication-history.html">Kommunikasjonshistorikk</a>
 <a href="admins.html">Brukere og tilganger</a>
 <a href="history.html">Endringshistorikk</a>
 <button type="button" onclick="logout()">Logg ut</button>
@@ -255,7 +256,14 @@ async function invokeSms(testMode) {
 
   try {
     const {data,error}=await sb.functions.invoke("send-sms",{
-      body:{recipients,message:text,reply:selectedReplyMode(),test:testMode}
+      body:{
+        recipients,
+        message:text,
+        reply:selectedReplyMode(),
+        test:testMode,
+        audienceType:recipientMode.value,
+        audienceLabel:recipientMode.options[recipientMode.selectedIndex]?.text || "Manuell SMS"
+      }
     });
 
     if(error) {

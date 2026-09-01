@@ -27,6 +27,7 @@
   <a href="new-person.html">Legg til person</a>
   <a href="sms.html">SMS</a>
   <a href="email.html" aria-current="page">E-post</a>
+<a href="communication-history.html">Kommunikasjonshistorikk</a>
   <a href="admins.html">Brukere og tilganger</a>
   <a href="history.html">Endringshistorikk</a>
   <button type="button" onclick="logout()">Logg ut</button>
@@ -462,7 +463,9 @@ async function invokeEmail({ testMode }) {
         subject: subjectText,
         text: messageText,
         attachments: fileData,
-        test: testMode
+        test: testMode,
+        audienceType: recipientMode.value,
+        audienceLabel: recipientMode.options[recipientMode.selectedIndex]?.text || "Manuell e-post"
       }
     });
 

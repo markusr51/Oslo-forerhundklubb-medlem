@@ -23,6 +23,7 @@
 <a href="helper-settlement.html">Hjelpetreneroppgjør</a>
 <a href="sms.html">SMS</a>
 <a href="email.html">E-post</a>
+<a href="communication-history.html">Kommunikasjonshistorikk</a>
 <button type="button" onclick="logout()">Logg ut</button>
 </nav>
 
@@ -267,6 +268,22 @@ Ingen opplasting pågår.
 </thead>
 <tbody id="documentRows"></tbody>
 </table>
+</section>
+
+
+<section aria-labelledby="communicationHistoryHeading">
+<h2 id="communicationHistoryHeading">Kommunikasjonshistorikk</h2>
+<table>
+<caption>Utsendelser knyttet til dette arrangementet</caption>
+<thead>
+<tr>
+<th>Tidspunkt</th><th>Kanal</th><th>Type</th><th>Målgruppe</th>
+<th>Planlagt</th><th>Sendt</th><th>Feilet</th><th>Status</th>
+</tr>
+</thead>
+<tbody id="communicationHistoryRows"></tbody>
+</table>
+<p><a href="communication-history.html">Åpne full kommunikasjonshistorikk</a></p>
 </section>
 
 <section aria-labelledby="notesHeading">
@@ -823,7 +840,9 @@ async function sendCommunication(test) {
           text:msg,
           attachments:calendarCheck.checked ? [eventIcsAttachment(currentEvent)] : [],
           test,
-          eventId
+          eventId,
+          audienceType: audienceMode.value,
+          audienceLabel: audienceMode.options[audienceMode.selectedIndex]?.text || "Manuell målgruppe"
         }
       });
 
@@ -845,7 +864,9 @@ async function sendCommunication(test) {
           message:msg,
           reply:smsReplyCheck.checked,
           test,
-          eventId
+          eventId,
+          audienceType: audienceMode.value,
+          audienceLabel: audienceMode.options[audienceMode.selectedIndex]?.text || "Manuell målgruppe"
         }
       });
 
@@ -979,6 +1000,7 @@ async function loadAutomationRules() {
 
       if (error) return announce("Kunne ikke endre regelen: " + error.message);
       await loadAutomationRules();
+    await loadCommunicationHistory();
       announce("Automatisk utsendelse er oppdatert.");
     };
   });
@@ -1192,6 +1214,43 @@ documentForm.onsubmit = async e => {
   await loadDocuments();
 };
 
+
+
+async function loadCommunicationHistory() {
+  const {data,error} = await sb
+    .from("communication_history")
+    .select("id,source,channel,audience_label,recipient_count,sent_count,failed_count,status,created_at")
+    .eq("event_id",eventId)
+    .order("created_at",{ascending:false})
+    .limit(50);
+
+  if (error) {
+    communicationHistoryRows.innerHTML =
+      `<tr><td colspan="8">${esc(error.message)}</td></tr>`;
+    return;
+  }
+
+  const statusText = v => ({
+    pending:"Pågår/venter",
+    sent:"Sendt",
+    partial:"Delvis feilet",
+    failed:"Feilet",
+    test:"Test"
+  })[v] || v;
+
+  communicationHistoryRows.innerHTML = (data || []).map(h => `
+    <tr>
+      <td>${esc(new Date(h.created_at).toLocaleString("nb-NO"))}</td>
+      <td>${esc(h.channel === "sms" ? "SMS" : h.channel === "email" ? "E-post" : h.channel)}</td>
+      <td>${esc(h.source === "automatic" ? "Automatisk" : "Manuell")}</td>
+      <td>${esc(h.audience_label || "")}</td>
+      <td>${esc(h.recipient_count)}</td>
+      <td>${esc(h.sent_count)}</td>
+      <td>${esc(h.failed_count)}</td>
+      <td>${esc(statusText(h.status))}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="8">Ingen utsendelser er logget for arrangementet ennå.</td></tr>`;
+}
 
 async function loadReplies() {
   const {data,error} = await sb
