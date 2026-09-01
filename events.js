@@ -111,3 +111,41 @@ function eventStatusText(status) {
     completed: "Gjennomført"
   })[status] || status;
 }
+
+
+function formatSelectedDate(prefix) {
+  const iso = getDateFromSelects(prefix);
+  return iso ? norwegianDate(iso) : "Ugyldig dato";
+}
+function formatSelectedTime(prefix, allowNone = false) {
+  const value = getTimeFromSelects(prefix, allowNone);
+  if (!value && allowNone) return "Ingen sluttid";
+  return value ? norwegianTime(value) : "Ugyldig tid";
+}
+function wireSelectionStatus(prefix, outputId, kind, allowNone = false) {
+  const output = document.getElementById(outputId);
+  if (!output) return;
+  const update = () => {
+    output.textContent = kind === "date"
+      ? "Valgt dato: " + formatSelectedDate(prefix)
+      : "Valgt tid: " + formatSelectedTime(prefix, allowNone);
+  };
+  const ids = kind === "date"
+    ? [prefix + "Day", prefix + "Month", prefix + "Year"]
+    : [prefix + "Hour", prefix + "Minute"];
+  ids.forEach(id => document.getElementById(id)?.addEventListener("change", update));
+  update();
+}
+function textToBase64(text) { return btoa(unescape(encodeURIComponent(text))); }
+function escapeIcsText(value) {
+  return String(value || "").replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;");
+}
+function eventIcsAttachment(event) {
+  const sd=String(event.event_date||"").replaceAll("-","");
+  const ed=String(event.end_date||event.event_date||"").replaceAll("-","");
+  const st=String(event.start_time||"00:00:00").slice(0,5).replace(":","")+"00";
+  const et=String(event.end_time||event.start_time||"00:00:00").slice(0,5).replace(":","")+"00";
+  const stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z");
+  const ics=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Oslo Førerhundklubb//Medlemsportal//NO","CALSCALE:GREGORIAN","METHOD:REQUEST","BEGIN:VEVENT",`UID:${event.id}@osloforerhundklubb.no`,`DTSTAMP:${stamp}`,`DTSTART:${sd}T${st}`,`DTEND:${ed}T${et}`,`SUMMARY:${escapeIcsText(event.title)}`,`LOCATION:${escapeIcsText(event.location||"")}`,`DESCRIPTION:${escapeIcsText(event.description||"")}`,`STATUS:${event.status==="cancelled"?"CANCELLED":"CONFIRMED"}`,"END:VEVENT","END:VCALENDAR"].join("\r\n");
+  return {filename:(event.title||"arrangement").replace(/[^A-Za-z0-9_-]+/g,"_")+".ics",content:textToBase64(ics),contentType:"text/calendar; charset=utf-8; method=REQUEST",size:new Blob([ics]).size};
+}

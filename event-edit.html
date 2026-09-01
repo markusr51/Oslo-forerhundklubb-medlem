@@ -49,6 +49,7 @@
 <label for="eventYear">År</label>
 <select id="eventYear"></select>
 </p>
+<p id="eventDateStatus" class="status" role="status" aria-live="polite"></p>
 </fieldset>
 
 <p>
@@ -70,6 +71,7 @@ Flerdagsarrangement
 <label for="endDateYear">År</label>
 <select id="endDateYear"></select>
 </p>
+<p id="endDateStatus" class="status" role="status" aria-live="polite"></p>
 </fieldset>
 
 <fieldset>
@@ -81,6 +83,7 @@ Flerdagsarrangement
 <label for="startMinute">Minutt</label>
 <select id="startMinute"></select>
 </p>
+<p id="startTimeStatus" class="status" role="status" aria-live="polite"></p>
 </fieldset>
 
 <fieldset>
@@ -92,6 +95,7 @@ Flerdagsarrangement
 <label for="endMinute">Minutt</label>
 <select id="endMinute"></select>
 </p>
+<p id="endTimeStatus" class="status" role="status" aria-live="polite"></p>
 <p>Velg «Ingen» under time hvis arrangementet ikke skal ha registrert sluttid.</p>
 </fieldset>
 
@@ -115,6 +119,7 @@ Arrangementet har påmeldingsfrist
 <label for="deadlineYear">År</label>
 <select id="deadlineYear"></select>
 </p>
+<p id="deadlineDateStatus" class="status" role="status" aria-live="polite"></p>
 </div>
 </fieldset>
 
@@ -185,6 +190,12 @@ function copyStartDateToEndDate() {
   populateDateSelects("deadline");
   populateTimeSelects("start", false, 18, 0);
   populateTimeSelects("end", true, 20, 0);
+
+  wireSelectionStatus("event", "eventDateStatus", "date");
+  wireSelectionStatus("endDate", "endDateStatus", "date");
+  wireSelectionStatus("start", "startTimeStatus", "time");
+  wireSelectionStatus("end", "endTimeStatus", "time", true);
+  wireSelectionStatus("deadline", "deadlineDateStatus", "date");
 
   setDefaultEndTime();
   copyStartDateToEndDate();
