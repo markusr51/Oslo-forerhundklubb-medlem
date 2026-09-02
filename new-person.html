@@ -19,59 +19,105 @@
 <a href="communication-history.html">Kommunikasjonshistorikk</a><a href="admins.html">Brukere og tilganger</a><a href="history.html">Endringshistorikk</a><button onclick="logout()">Logg ut</button></nav>
 <main>
 <p id="status" class="status" role="status" aria-live="polite"></p>
-<form id="f">
-<p><label for="name">Navn</label><br><input id="name" required></p>
-<p><label for="email">E-post</label><br><input id="email" type="email"></p>
-<p><label for="phone">Telefon</label><br><input id="phone"></p>
-<button type="submit">Opprett person</button>
+<form id="personForm" novalidate>
+<p><label for="personName">Navn</label><br><input id="personName" name="personName" required></p>
+<p><label for="personEmail">E-post</label><br><input id="personEmail" name="personEmail" type="email"></p>
+<p><label for="personPhone">Telefon</label><br><input id="personPhone" name="personPhone"></p>
+<button id="createPersonButton" type="button">Opprett person</button>
 </form>
 </main>
 <script>
-const personForm = document.getElementById("f");
-const nameInput = document.getElementById("name");
-const emailInput = document.getElementById("email");
-const phoneInput = document.getElementById("phone");
+const personForm = document.getElementById("personForm");
+const personName = document.getElementById("personName");
+const personEmail = document.getElementById("personEmail");
+const personPhone = document.getElementById("personPhone");
+const createPersonButton = document.getElementById("createPersonButton");
+const statusElement = document.getElementById("status");
+
+function setStatus(message) {
+  if (statusElement) statusElement.textContent = message;
+  if (typeof announce === "function") {
+    try { announce(message); } catch (_) {}
+  }
+}
+
+async function createPerson() {
+  createPersonButton.disabled = true;
+
+  try {
+    setStatus("Kontrollerer innlogging …");
+
+    if (typeof sb === "undefined" || !sb) {
+      throw new Error("Supabase-klienten ble ikke lastet.");
+    }
+
+    const {data:{session}, error:sessionError} = await sb.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (!session) throw new Error("Du er ikke innlogget.");
+
+    const fullName = personName.value.trim();
+    const email = personEmail.value.trim();
+    const phone = personPhone.value.trim();
+
+    if (!fullName) {
+      setStatus("Navn må fylles ut.");
+      personName.focus();
+      return;
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setStatus("E-postadressen ser ikke gyldig ut.");
+      personEmail.focus();
+      return;
+    }
+
+    setStatus("Oppretter person …");
+
+    const {data, error} = await sb
+      .from("persons")
+      .insert({
+        full_name: fullName,
+        email: email || null,
+        phone: phone || null,
+        membership_status: "active"
+      })
+      .select("id,full_name")
+      .single();
+
+    if (error) throw error;
+
+    personForm.reset();
+    setStatus(`Personen ${data?.full_name || fullName} er opprettet.`);
+    personName.focus();
+  } catch (error) {
+    console.error("Opprett person feilet:", error);
+    const message = "Kunne ikke opprette person: " + (error?.message || String(error));
+    setStatus(message);
+    alert(message);
+  } finally {
+    createPersonButton.disabled = false;
+  }
+}
+
+createPersonButton.addEventListener("click", createPerson);
+
+personForm.addEventListener("submit", e => {
+  e.preventDefault();
+  createPerson();
+});
 
 (async()=>{
   try {
-    await requireSession();
-  } catch (e) {
-    console.error(e);
-    announce("Kunne ikke kontrollere innloggingen.");
+    if (typeof requireSession === "function") {
+      await requireSession();
+    }
+    setStatus("Klar til å opprette person.");
+  } catch (error) {
+    console.error(error);
+    const message = "Kunne ikke kontrollere innloggingen: " + (error?.message || String(error));
+    setStatus(message);
+    alert(message);
   }
 })();
-
-personForm.addEventListener("submit", async e => {
-  e.preventDefault();
-
-  const fullName = nameInput.value.trim();
-  const emailValue = emailInput.value.trim();
-  const phoneValue = phoneInput.value.trim();
-
-  if (!fullName) {
-    announce("Navn må fylles ut.");
-    nameInput.focus();
-    return;
-  }
-
-  announce("Oppretter person …");
-
-  const {error} = await sb.from("persons").insert({
-    full_name: fullName,
-    email: emailValue || null,
-    phone: phoneValue || null,
-    membership_status: "active"
-  });
-
-  if (error) {
-    console.error(error);
-    announce("Kunne ikke opprette person: " + error.message);
-    return;
-  }
-
-  personForm.reset();
-  announce("Personen er opprettet.");
-  nameInput.focus();
-});
 </script>
 </body></html>
