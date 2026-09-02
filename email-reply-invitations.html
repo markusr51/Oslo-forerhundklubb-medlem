@@ -1,0 +1,25 @@
+<!doctype html><html lang="no"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>E-post hurtigpåmelding – Oslo Førerhundklubb</title><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script></head>
+<body><nav id="portalNav" aria-label="Hovedmeny"></nav><main><h1>E-post hurtigpåmelding</h1>
+<p id="status" class="status" role="status" aria-live="polite">Laster …</p>
+<p>Velg arrangement og mottakere. Hver mottaker får en personlig svaradresse og kan svare JA eller NEI.</p>
+<form id="sendForm"><p><label for="eventSelect">Arrangement</label><br><select id="eventSelect" required><option value="">Ingen valgt</option></select></p>
+<p><label for="personSearch">Søk etter mottaker</label><br><input id="personSearch" type="search"></p>
+<p><label for="personSelect">Mottakere</label><br><select id="personSelect" multiple size="12" required></select></p>
+<p id="recipientStatus" role="status" aria-live="polite">Ingen mottakere valgt.</p>
+<p><label for="subjectInput">Emne</label><br><input id="subjectInput" maxlength="250" required></p>
+<p><label for="messageInput">Melding</label><br><textarea id="messageInput" rows="12" required></textarea></p>
+<button type="submit">Send invitasjoner</button></form></main>
+<script>
+let me=null,people=[],events=[];
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c]));}
+function updateRecipientStatus(){const n=personSelect.selectedOptions.length;recipientStatus.textContent=n?`Valgt ${n} mottaker${n===1?"":"e"}.`:"Ingen mottakere valgt.";}
+function renderPeople(){const q=personSearch.value.trim().toLowerCase();personSelect.innerHTML=people.filter(p=>!q||String(p.full_name||"").toLowerCase().includes(q)||String(p.email||"").toLowerCase().includes(q)).map(p=>`<option value="${p.id}">${esc(p.full_name)} – ${esc(p.email)}</option>`).join("");updateRecipientStatus();}
+personSearch.oninput=renderPeople;personSelect.onchange=updateRecipientStatus;
+eventSelect.onchange=()=>{const e=events.find(x=>x.id===eventSelect.value);if(!e)return;subjectInput.value=e.title;messageInput.value=`Hei!\\n\\nDu inviteres til ${e.title}${e.event_date?` ${e.event_date}`:""}${e.location?` på ${e.location}`:""}.`;};
+sendForm.onsubmit=async ev=>{ev.preventDefault();const ids=[...personSelect.selectedOptions].map(o=>o.value);if(!ids.length)return announce("Velg minst én mottaker.");if(!confirm(`Sende til ${ids.length} mottaker${ids.length===1?"":"e"}?`))return;announce("Sender invitasjoner …");const {data,error}=await sb.functions.invoke("send-event-reply-invitations",{body:{eventId:eventSelect.value,personIds:ids,subject:subjectInput.value.trim(),message:messageInput.value.trim()}});if(error)return announce("Sending feilet: "+error.message);if(!data?.success)return announce("Sending feilet: "+(data?.error||"Ukjent feil."));announce(`Ferdig. Sendt: ${data.sent||0}. Feilet: ${data.failed||0}. Hoppet over: ${data.skipped||0}.`);};
+(async()=>{await requireSession();me=await getCurrentAppUser();if(!["admin","system_admin"].includes(me?.app_role)){location.replace("my-page.html");return;}await renderPortalNavigation({current:"email-reply",me});
+let r=await sb.from("events").select("id,title,event_date,location").eq("allow_email_reply_registration",true).eq("registration_form_enabled",false).order("event_date");if(r.error)return announce(r.error.message);events=r.data||[];eventSelect.innerHTML='<option value="">Ingen valgt</option>'+events.map(e=>`<option value="${e.id}">${esc(e.title)} – ${esc(e.event_date||"")}</option>`).join("");
+r=await sb.from("persons").select("id,full_name,email").not("email","is",null).order("full_name");if(r.error)return announce(r.error.message);people=(r.data||[]).filter(p=>String(p.email||"").trim());renderPeople();announce("E-post hurtigpåmelding er klar.");})();
+</script></body></html>

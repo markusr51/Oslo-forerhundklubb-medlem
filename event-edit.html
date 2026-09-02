@@ -163,6 +163,16 @@ Arrangementet har påmeldingsfrist
 </select>
 </p>
 
+<fieldset>
+<legend>Påmelding i medlemsportalen</legend>
+<p><label><input id="allowSelfRegistration" type="checkbox"> Tillat påmelding og avmelding fra Min side</label></p>
+<p><label><input id="allowGuests" type="checkbox"> Tillat gjester</label></p>
+<p><label for="maxGuests">Maks antall gjester per påmelding</label><br><input id="maxGuests" type="number" min="0" max="20" value="0"></p>
+<p><label><input id="registrationFormEnabled" type="checkbox"> Bruk eget påmeldingsskjema</label></p>
+<p><label><input id="allowEmailReplyRegistration" type="checkbox"> Tillat hurtigpåmelding med JA/NEI som svar på e-post</label></p>
+<p>Hurtigpåmelding via e-post kan ikke brukes samtidig med eget påmeldingsskjema.</p>
+</fieldset>
+
 <button type="submit" id="saveButton">Lagre arrangement</button>
 
 <p id="formError" class="status" role="alert" aria-live="assertive" hidden></p>
@@ -184,6 +194,25 @@ const deadlineFields = document.getElementById("deadlineFields");
 const statusSelect = document.getElementById("statusSelect");
 const formError = document.getElementById("formError");
 const saveButton = document.getElementById("saveButton");
+const allowSelfRegistration = document.getElementById("allowSelfRegistration");
+const allowGuests = document.getElementById("allowGuests");
+const maxGuests = document.getElementById("maxGuests");
+const registrationFormEnabled = document.getElementById("registrationFormEnabled");
+const allowEmailReplyRegistration = document.getElementById("allowEmailReplyRegistration");
+function syncRegistrationModes() {
+  if (registrationFormEnabled.checked) {
+    allowEmailReplyRegistration.checked = false;
+    allowEmailReplyRegistration.disabled = true;
+  } else {
+    allowEmailReplyRegistration.disabled = false;
+  }
+}
+registrationFormEnabled.addEventListener("change", syncRegistrationModes);
+allowEmailReplyRegistration.addEventListener("change", () => {
+  if (allowEmailReplyRegistration.checked) registrationFormEnabled.checked = false;
+  syncRegistrationModes();
+});
+syncRegistrationModes();
 
 function showFormError(message) {
   formError.textContent = message;
@@ -346,6 +375,7 @@ form.addEventListener("submit", async (event) => {
     allow_guests: allowGuests.checked,
     max_guests: Number(maxGuests.value || 0),
     registration_form_enabled: registrationFormEnabled.checked,
+    allow_email_reply_registration: allowEmailReplyRegistration.checked,
       event_date: eventDate,
       end_date: multiDayToggle.checked ? endDate : null,
       start_time: startTime,
