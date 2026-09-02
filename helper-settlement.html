@@ -11,13 +11,7 @@
 </head>
 <body>
 <header><h1>Hjelpetreneroppgjør</h1></header>
-<nav aria-label="Hovedmeny">
-<a href="my-page.html">Min side</a>
-<a href="library.html">Dokumentbibliotek</a>
-<a href="helper-settlement.html" aria-current="page">Hjelpetreneroppgjør</a>
-<a id="adminMembersLink" href="members.html" hidden>Administrasjon</a>
-<button type="button" onclick="logout()">Logg ut</button>
-</nav>
+<nav id="portalNav" aria-label="Hovedmeny"></nav>
 
 <main>
 <p id="status" class="status" role="status" aria-live="polite">Laster …</p>
@@ -550,7 +544,6 @@ personSelect.onchange=loadData;
     if(isAdmin()){
       adminSection.hidden=false;
       adminPersonSection.hidden=false;
-      adminMembersLink.hidden=false;
       const r=await sb.from("persons").select("id,full_name,email").order("full_name");
       people=r.data||[];
       personSelect.innerHTML='<option value="">Ingen valgt</option>'+

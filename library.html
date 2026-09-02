@@ -12,20 +12,7 @@
 <body>
 <header><h1>Dokumentbibliotek</h1></header>
 
-<nav aria-label="Hovedmeny">
-<a href="my-page.html">Min side</a>
-<a href="members.html">Medlemmer</a>
-<a href="events.html">Arrangementer</a>
-<a href="event-templates.html">Arrangementsmaler</a>
-<a href="groups.html">Grupper og utvalg</a>
-<a href="roles.html">Roller</a>
-<a href="library.html" aria-current="page">Dokumentbibliotek</a>
-<a href="helper-settlement.html">Hjelpetreneroppgjør</a>
-<a href="sms.html">SMS</a>
-<a href="email.html">E-post</a>
-<a href="communication-history.html">Kommunikasjonshistorikk</a>
-<button type="button" onclick="logout()">Logg ut</button>
-</nav>
+<nav id="portalNav" aria-label="Hovedmeny"></nav>
 
 <main>
 <p id="status" class="status" role="status" aria-live="polite">Laster dokumentbibliotek …</p>
@@ -608,6 +595,7 @@ uploadForm.onsubmit = async e=>{
   try {
     await requireSession();
     me = await getCurrentAppUser();
+    await renderPortalNavigation({current:"library", me});
 
     if (isAdmin()) adminSection.hidden = false;
 

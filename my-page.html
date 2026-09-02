@@ -15,13 +15,7 @@
 <h1>Min side</h1>
 </header>
 
-<nav aria-label="Min side-meny">
-<a href="my-page.html" aria-current="page">Min side</a>
-<a href="library.html">Dokumentbibliotek</a>
-<a id="helperNav" href="helper-settlement.html" hidden>Hjelpetreneroppgjør</a>
-<a id="adminNav" href="members.html" hidden>Administrasjon</a>
-<button type="button" onclick="logout()">Logg ut</button>
-</nav>
+<nav id="portalNav" aria-label="Min side-meny"></nav>
 
 <main>
 <p id="status" class="status" role="status" aria-live="polite">Laster Min side …</p>
@@ -121,7 +115,6 @@ function renderRoles() {
     : "<li>Du er ikke registrert i noen grupper eller utvalg.</li>";
 
   const helper = roles.some(r=>String(r.name).toLowerCase()==="hjelpetrener");
-  helperNav.hidden = !helper;
 }
 
 function renderEvents() {
@@ -199,9 +192,7 @@ function renderHelper() {
     await requireSession();
     me = await getCurrentAppUser();
 
-    if (me?.app_role === "admin" || me?.app_role === "system_admin") {
-      adminNav.hidden = false;
-    }
+    await renderPortalNavigation({current:"my-page", me});
 
     const {data,error} = await sb.rpc("my_portal_dashboard");
 
