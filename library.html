@@ -62,10 +62,14 @@
 </form>
 
 <h4>Rettigheter</h4>
+<p id="permissionHelp">
+Nye mapper er private som standard. Velg hvem som skal ha tilgang og trykk «Legg til rettighet».
+</p>
 <form id="permissionForm">
 <p>
 <label for="permissionSubjectType">Hvem skal ha tilgang?</label><br>
 <select id="permissionSubjectType">
+<option value="">Ingen valgt – mappen er privat</option>
 <option value="all_authenticated">Alle innloggede</option>
 <option value="role">Valgt personrolle</option>
 <option value="group">Valgt gruppe eller utvalg</option>
@@ -508,12 +512,30 @@ deleteFolderBtn.onclick = async ()=>{
 };
 
 permissionSubjectType.onchange = ()=>{
-  permissionRoleWrap.hidden = permissionSubjectType.value !== "role";
-  permissionGroupWrap.hidden = permissionSubjectType.value !== "group";
-  permissionAppRoleWrap.hidden = permissionSubjectType.value !== "app_role";
+  const type = permissionSubjectType.value;
+  permissionRoleWrap.hidden = type !== "role";
+  permissionGroupWrap.hidden = type !== "group";
+  permissionAppRoleWrap.hidden = type !== "app_role";
+
+  if (!type) {
+    permissionRole.value = "";
+    permissionGroup.value = "";
+    permissionAppRole.value = "readonly";
+  }
 };
 
 permissionForm.onsubmit = async e=>{
+  e.preventDefault();
+
+  const subjectType = permissionSubjectType.value;
+
+  if (!subjectType) {
+    announce("Velg hvem som skal ha tilgang før du legger til en rettighet.");
+    permissionSubjectType.focus();
+    return;
+  }
+
+
   e.preventDefault();
 
   if (!currentFolderId || !isAdmin()) return;
@@ -542,7 +564,13 @@ permissionForm.onsubmit = async e=>{
   if (error) return announce("Kunne ikke legge til rettigheten: " + error.message);
 
   await loadPermissions();
-  announce("Rettigheten er lagt til.");
+  permissionSubjectType.value = "";
+  permissionSubjectType.onchange();
+  permRead.checked = true;
+  permUpload.checked = false;
+  permEdit.checked = false;
+  permDelete.checked = false;
+  announce("Rettigheten er lagt til. Mappen er fortsatt privat for alle andre.");
 };
 
 uploadForm.onsubmit = async e=>{
