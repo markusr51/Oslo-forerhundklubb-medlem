@@ -1,0 +1,7 @@
+v0.21.3 – dokumentbibliotek, tydelig standardtilgang
+
+- Nye mapper er private som standard.
+- Rettighetsskjemaet starter på «Ingen valgt – mappen er privat».
+- Administrator må eksplisitt velge målgruppe og trykke «Legg til rettighet».
+- Skjemaet forklarer at mapper er private frem til rettighet legges til.
+- Etter lagring nullstilles målgruppen tilbake til privat standard.

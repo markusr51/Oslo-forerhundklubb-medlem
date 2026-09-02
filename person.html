@@ -30,7 +30,6 @@
 
 </head>
 <body>
-<header><h1>Person</h1></header>
 <nav aria-label="Hovedmeny">
 <a href="admin-dashboard.html">Oversikt</a><a href="members.html">Til medlemslisten</a>
 <a href="groups.html">Grupper og utvalg</a>
@@ -40,42 +39,263 @@
 <a href="email.html">E-post</a>
 <a href="communication-history.html">Kommunikasjonshistorikk</a><button onclick="logout()">Logg ut</button></nav>
 <main>
+<h1>Person</h1>
+
 <p id="status" class="status" role="status" aria-live="polite">Laster …</p>
-<form id="f">
-<p><label for="name">Navn</label><br><input id="name"></p>
-<p><label for="email">E-post</label><br><input id="email" type="email"></p>
-<p><label for="phone">Telefon</label><br><input id="phone"></p>
+<form id="personForm">
+<p><label for="personName">Navn</label><br><input id="personName" name="personName"></p>
+<p><label for="personEmail">E-post</label><br><input id="personEmail" name="personEmail" type="email"></p>
+<p><label for="personPhone">Telefon</label><br><input id="personPhone" name="personPhone"></p>
 <p><label for="membership">Status</label><br>
 <select id="membership"><option value="active">Aktiv</option><option value="inactive">Inaktiv</option><option value="resigned">Utmeldt</option></select></p>
-<button type="submit">Lagre</button>
+<button type="submit">Lagre personopplysninger</button>
 </form>
+
+<section aria-labelledby="personRolesHeading">
+<h2 id="personRolesHeading">Roller</h2>
+<ul id="personRoleList"></ul>
+<form id="personRoleForm">
+<p>
+<label for="personRoleSelect">Legg til rolle</label><br>
+<select id="personRoleSelect"><option value="">Ingen valgt</option></select>
+</p>
+<button type="submit">Legg til rolle på personen</button>
+</form>
+<p><a href="roles.html">Åpne full rolleadministrasjon</a></p>
+</section>
+
+<section id="portalAccessSection" aria-labelledby="portalAccessHeading">
+<h2 id="portalAccessHeading">Portaltilgang</h2>
+<p id="portalAccessStatus" role="status" aria-live="polite">Kontrollerer portaltilgang …</p>
+<form id="portalInviteForm" hidden>
+<p>
+<label for="portalRole">Tilgangsrolle</label><br>
+<select id="portalRole">
+<option value="readonly">Vanlig medlem / kun medlemstilgang</option>
+<option value="admin">Administrator</option>
+<option value="system_admin">Systemadministrator</option>
+</select>
+</p>
+<button type="submit">Send aktiveringsinvitasjon</button>
+</form>
+<p><a href="admins.html">Åpne Brukere og tilganger</a></p>
+</section>
 <section class="danger"><h2>Permanent sletting</h2><button id="del">Slett person permanent</button></section>
 </main>
 <script>
-let id=new URLSearchParams(location.search).get('id');
-(async()=>{
-  await requireSession();
-  const {data,error}=await sb.from('persons').select('*').eq('id',id).single();
-  if(error){announce(error.message);return;}
-  name.value=data.full_name||'';
-  email.value=data.email||'';
-  phone.value=data.phone||'';
-  membership.value=data.membership_status;
-  announce('Person lastet.');
-})();
-f.addEventListener('submit',async e=>{
+const personId = new URLSearchParams(location.search).get("id");
+let currentUser = null;
+let personData = null;
+let availableRoles = [];
+let assignedRoles = [];
+
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[c]));
+}
+
+async function loadPerson() {
+  const {data,error} = await sb
+    .from("persons")
+    .select("id,full_name,email,phone,membership_status")
+    .eq("id",personId)
+    .single();
+
+  if (error) throw error;
+  personData = data;
+
+  document.getElementById("personName").value = data.full_name || "";
+  document.getElementById("personEmail").value = data.email || "";
+  document.getElementById("personPhone").value = data.phone || "";
+  membership.value = data.membership_status || "active";
+
+  document.querySelector("h1").textContent = data.full_name
+    ? `Person – ${data.full_name}`
+    : "Person";
+}
+
+async function loadRoles() {
+  let r = await sb.from("roles").select("id,name").order("name");
+  if (r.error) throw r.error;
+  availableRoles = r.data || [];
+
+  r = await sb
+    .from("person_roles")
+    .select("person_id,role_id,is_active,roles(name)")
+    .eq("person_id",personId)
+    .eq("is_active",true);
+
+  if (r.error) throw r.error;
+  assignedRoles = r.data || [];
+
+  personRoleList.innerHTML = assignedRoles.length
+    ? assignedRoles.map(x=>`
+        <li>
+          ${esc(x.roles?.name || "")}
+          <button type="button" data-remove-role="${x.role_id}">Fjern rolle</button>
+        </li>
+      `).join("")
+    : "<li>Ingen aktive roller.</li>";
+
+  const assignedIds = new Set(assignedRoles.map(x=>x.role_id));
+  personRoleSelect.innerHTML =
+    '<option value="">Ingen valgt</option>' +
+    availableRoles
+      .filter(r=>!assignedIds.has(r.id))
+      .map(r=>`<option value="${r.id}">${esc(r.name)}</option>`)
+      .join("");
+
+  personRoleList.querySelectorAll("[data-remove-role]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      if (!confirm("Fjerne denne rollen fra personen?")) return;
+      const {error} = await sb
+        .from("person_roles")
+        .update({is_active:false})
+        .eq("person_id",personId)
+        .eq("role_id",btn.dataset.removeRole);
+      if (error) return announce("Kunne ikke fjerne rollen: " + error.message);
+      await loadRoles();
+      announce("Rollen er fjernet.");
+    };
+  });
+}
+
+async function loadPortalAccess() {
+  const {data,error} = await sb
+    .from("app_users")
+    .select("user_id,app_role,active,must_change_password")
+    .eq("person_id",personId)
+    .maybeSingle();
+
+  if (error) {
+    portalAccessStatus.textContent = "Kunne ikke kontrollere portaltilgang: " + error.message;
+    return;
+  }
+
+  if (data) {
+    portalAccessStatus.textContent =
+      `Portalbruker finnes. Rolle: ${data.app_role}. ` +
+      `${data.active ? "Aktiv." : "Deaktivert."} ` +
+      `${data.must_change_password ? "Førstegangsoppsett ikke fullført." : "Førstegangsoppsett fullført."}`;
+    portalInviteForm.hidden = true;
+    return;
+  }
+
+  if (currentUser?.app_role === "system_admin") {
+    portalAccessStatus.textContent =
+      "Personen har ikke portalbruker. Du kan sende aktiveringsinvitasjon her.";
+    portalInviteForm.hidden = false;
+  } else {
+    portalAccessStatus.textContent =
+      "Personen har ikke portalbruker. Bare systemadministrator kan sende aktiveringsinvitasjon.";
+    portalInviteForm.hidden = true;
+  }
+}
+
+personForm.onsubmit = async e=>{
   e.preventDefault();
-  const {error}=await sb.from('persons').update({full_name:name.value.trim(),email:email.value.trim()||null,phone:phone.value.trim()||null,membership_status:membership.value}).eq('id',id);
-  announce(error?'Lagring feilet: '+error.message:'Lagret.');
-});
-del.addEventListener('click',async()=>{
-  const me=await getCurrentAppUser();
-  if(me?.app_role!=='system_admin'){announce('Bare systemadministrator kan slette permanent.');return;}
-  if(!confirm('Slette personen permanent?'))return;
-  const {error}=await sb.from('persons').delete().eq('id',id);
-  if(error){announce('Sletting feilet: '+error.message);return;}
-  location.href='members.html';
-});
+
+  const {error} = await sb.from("persons").update({
+    full_name: document.getElementById("personName").value.trim(),
+    email: document.getElementById("personEmail").value.trim() || null,
+    phone: document.getElementById("personPhone").value.trim() || null,
+    membership_status: membership.value
+  }).eq("id",personId);
+
+  if (error) return announce("Lagring feilet: " + error.message);
+  announce("Personopplysningene er lagret.");
+  await loadPerson();
+};
+
+personRoleForm.onsubmit = async e=>{
+  e.preventDefault();
+  if (!personRoleSelect.value) return announce("Velg en rolle.");
+
+  const {data:inactive,error:lookupError} = await sb
+    .from("person_roles")
+    .select("person_id,role_id,is_active")
+    .eq("person_id",personId)
+    .eq("role_id",personRoleSelect.value)
+    .eq("is_active",false)
+    .maybeSingle();
+
+  if (lookupError) return announce("Kunne ikke kontrollere rollen: " + lookupError.message);
+
+  let error = null;
+  if (inactive) {
+    ({error} = await sb.from("person_roles")
+      .update({is_active:true})
+      .eq("person_id",personId)
+      .eq("role_id",personRoleSelect.value));
+  } else {
+    ({error} = await sb.from("person_roles").insert({
+      person_id:personId,
+      role_id:personRoleSelect.value,
+      is_active:true
+    }));
+  }
+
+  if (error) return announce("Kunne ikke legge til rollen: " + error.message);
+  await loadRoles();
+  announce("Rollen er lagt til.");
+};
+
+portalInviteForm.onsubmit = async e=>{
+  e.preventDefault();
+  if (currentUser?.app_role !== "system_admin") {
+    return announce("Bare systemadministrator kan invitere portalbrukere.");
+  }
+
+  announce("Sender aktiveringsinvitasjon …");
+
+  const redirectTo = new URL("set-password.html", location.href).href;
+
+  const {data,error} = await sb.functions.invoke("invite-portal-user", {
+    body:{
+      personId,
+      appRole:portalRole.value,
+      redirectTo
+    }
+  });
+
+  if (error || !data?.success) {
+    const message =
+      data?.error ||
+      error?.message ||
+      "Ukjent feil ved invitasjon.";
+    announce("Invitasjon feilet: " + message);
+    return;
+  }
+
+  announce(data.message || "Aktiveringsinvitasjonen er sendt.");
+  await loadPortalAccess();
+};
+
+del.onclick = async ()=>{
+  if (currentUser?.app_role !== "system_admin") {
+    return announce("Bare systemadministrator kan slette permanent.");
+  }
+  if (!confirm("Slette personen permanent?")) return;
+
+  const {error} = await sb.from("persons").delete().eq("id",personId);
+  if (error) return announce("Sletting feilet: " + error.message);
+  location.href = "members.html";
+};
+
+(async()=>{
+  try {
+    await requireSession();
+    currentUser = await getCurrentAppUser();
+    await loadPerson();
+    await loadRoles();
+    await loadPortalAccess();
+    announce("Personen er klar.");
+  } catch(error) {
+    console.error(error);
+    announce("Kunne ikke laste personen: " + (error?.message || String(error)));
+  }
+})();
 </script>
 </body>
 </html>

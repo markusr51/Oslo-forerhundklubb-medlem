@@ -180,3 +180,72 @@ async function renderPortalNavigation({
   const logoutButton = document.getElementById("portalLogoutButton");
   if (logoutButton) logoutButton.addEventListener("click", logout);
 }
+
+
+function installAccessibleSelectFeedback(root = document) {
+  const bind = select => {
+    if (!(select instanceof HTMLSelectElement)) return;
+    if (select.dataset.selectionFeedbackBound === "true") return;
+    if (select.dataset.selectionFeedback === "off") return;
+
+    select.dataset.selectionFeedbackBound = "true";
+
+    const id = select.id || `select-${crypto.randomUUID()}`;
+    if (!select.id) select.id = id;
+
+    const statusId = `${id}-selection-status`;
+    let status = document.getElementById(statusId);
+
+    if (!status) {
+      status = document.createElement("p");
+      status.id = statusId;
+      status.className = "selection-status";
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      status.dataset.selectStatusFor = id;
+      select.insertAdjacentElement("afterend", status);
+    }
+
+    const described = new Set(
+      String(select.getAttribute("aria-describedby") || "")
+        .split(/\s+/)
+        .filter(Boolean)
+    );
+    described.add(statusId);
+    select.setAttribute("aria-describedby", [...described].join(" "));
+
+    const update = () => {
+      const option = select.options[select.selectedIndex];
+      const text = option?.textContent?.trim() || "Ingen valgt";
+      status.textContent = `Valgt: ${text}.`;
+    };
+
+    select.addEventListener("change", update);
+    update();
+  };
+
+  root.querySelectorAll?.("select").forEach(bind);
+
+  if (!window.__selectFeedbackObserver) {
+    window.__selectFeedbackObserver = new MutationObserver(records => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          if (node.matches?.("select")) bind(node);
+          node.querySelectorAll?.("select").forEach(bind);
+        }
+      }
+    });
+
+    window.__selectFeedbackObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => installAccessibleSelectFeedback());
+} else {
+  installAccessibleSelectFeedback();
+}

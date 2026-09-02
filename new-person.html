@@ -30,7 +30,6 @@
 
 </head>
 <body>
-<header><h1>Legg til person</h1></header>
 <nav aria-label="Hovedmeny">
 <a href="admin-dashboard.html">Oversikt</a><a href="members.html">Medlemmer</a>
 <a href="events.html">Arrangementer</a>
@@ -42,6 +41,8 @@
 <a href="email.html">E-post</a>
 <a href="communication-history.html">Kommunikasjonshistorikk</a><a href="admins.html">Brukere og tilganger</a><a href="history.html">Endringshistorikk</a><button onclick="logout()">Logg ut</button></nav>
 <main>
+<h1>Legg til person</h1>
+
 <p id="status" class="status" role="status" aria-live="polite"></p>
 <form id="personForm" novalidate>
 <p><label for="personName">Navn</label><br><input id="personName" name="personName" required></p>
@@ -49,6 +50,9 @@
 <p><label for="personPhone">Telefon</label><br><input id="personPhone" name="personPhone"></p>
 <button id="createPersonButton" type="button">Opprett person</button>
 </form>
+<p id="createdPersonActions" hidden>
+<a id="createdPersonLink" href="members.html">Gå til personen</a>
+</p>
 </main>
 <script>
 const personForm = document.getElementById("personForm");
@@ -111,8 +115,12 @@ async function createPerson() {
     if (error) throw error;
 
     personForm.reset();
-    setStatus(`Personen ${data?.full_name || fullName} er opprettet.`);
-    personName.focus();
+    if (data?.id) {
+      createdPersonLink.href = `person.html?id=${encodeURIComponent(data.id)}`;
+      createdPersonActions.hidden = false;
+    }
+    setStatus(`Personen ${data?.full_name || fullName} er opprettet. Du kan nå gå til personen for å tildele roller eller portaltilgang.`);
+    createdPersonLink.focus();
   } catch (error) {
     console.error("Opprett person feilet:", error);
     const message = "Kunne ikke opprette person: " + (error?.message || String(error));

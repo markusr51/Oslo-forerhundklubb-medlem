@@ -34,7 +34,7 @@
 
 </head>
 <body>
-<header><img src="logo.png" alt="Oslo Førerhundklubb"><h1>Grupper og utvalg</h1></header>
+<header><img src="logo.png" alt="Oslo Førerhundklubb"></header>
 
 <nav aria-label="Hovedmeny">
 <a href="admin-dashboard.html">Oversikt</a>
@@ -55,6 +55,8 @@
 </nav>
 
 <main>
+<h1>Grupper og utvalg</h1>
+
 <p id="status" class="status" role="status" aria-live="polite">Laster grupper …</p>
 
 <section aria-labelledby="newGroupHeading">
@@ -62,7 +64,8 @@
 <form id="groupForm">
 <p>
 <label for="groupName">Navn</label><br>
-<input id="groupName" type="text" maxlength="150" required placeholder="For eksempel Styret">
+<span id="groupNameHint">Eksempel: Styret.</span><br>
+<input id="groupName" aria-describedby="groupNameHint" type="text" maxlength="150" required>
 </p>
 <p>
 <label for="groupDescription">Beskrivelse</label><br>

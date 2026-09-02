@@ -10,10 +10,11 @@
 <script src="app.js"></script>
 </head>
 <body>
-<header><h1>Hjelpetreneroppgjør</h1></header>
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
 
 <main>
+<h1>Hjelpetreneroppgjør</h1>
+
 <p id="status" class="status" role="status" aria-live="polite">Laster …</p>
 
 <section aria-labelledby="yearHeading">
@@ -40,10 +41,22 @@
 <section aria-labelledby="newEntryHeading">
 <h2 id="newEntryHeading">Registrer oppdrag eller kjøring</h2>
 <form id="entryForm">
+<fieldset>
+<legend>Dato</legend>
 <p>
-<label for="activityDate">Dato</label><br>
-<input id="activityDate" type="date" required>
+<label for="activityDay">Dag</label><br>
+<select id="activityDay" data-selection-feedback="off"></select>
 </p>
+<p>
+<label for="activityMonth">Måned</label><br>
+<select id="activityMonth" data-selection-feedback="off"></select>
+</p>
+<p>
+<label for="activityYear">År</label><br>
+<select id="activityYear" data-selection-feedback="off"></select>
+</p>
+<p id="activityDateStatus" class="status" role="status" aria-live="polite"></p>
+</fieldset>
 <p>
 <label for="activityType">Type</label><br>
 <select id="activityType">
@@ -99,10 +112,22 @@
 <section aria-labelledby="expenseHeading">
 <h2 id="expenseHeading">Registrer utlegg</h2>
 <form id="expenseForm">
+<fieldset>
+<legend>Dato</legend>
 <p>
-<label for="expenseDate">Dato</label><br>
-<input id="expenseDate" type="date" required>
+<label for="expenseDay">Dag</label><br>
+<select id="expenseDay" data-selection-feedback="off"></select>
 </p>
+<p>
+<label for="expenseMonth">Måned</label><br>
+<select id="expenseMonth" data-selection-feedback="off"></select>
+</p>
+<p>
+<label for="expenseYear">År</label><br>
+<select id="expenseYear" data-selection-feedback="off"></select>
+</p>
+<p id="expenseDateStatus" class="status" role="status" aria-live="polite"></p>
+</fieldset>
 <p>
 <label for="expenseAmount">Beløp</label><br>
 <input id="expenseAmount" type="number" min="0" step="0.01" required>
@@ -185,6 +210,81 @@ function safeName(filename){
     .normalize("NFKD")
     .replace(/[^\w.-]+/g,"_")
     .slice(0,120);
+}
+
+function setupDateSelects(prefix, initialDate = new Date()) {
+  const day = document.getElementById(prefix + "Day");
+  const month = document.getElementById(prefix + "Month");
+  const year = document.getElementById(prefix + "Year");
+  const status = document.getElementById(prefix + "DateStatus");
+
+  day.innerHTML = Array.from({length:31},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("");
+  month.innerHTML = [
+    "januar","februar","mars","april","mai","juni",
+    "juli","august","september","oktober","november","desember"
+  ].map((name,i)=>`<option value="${i+1}">${name}</option>`).join("");
+
+  const currentYear = new Date().getFullYear();
+  year.innerHTML = Array.from({length:7},(_,i)=>{
+    const y=currentYear-3+i;
+    return `<option value="${y}">${y}</option>`;
+  }).join("");
+
+  const update = ()=>{
+    status.textContent =
+      `Valgt dato: ${day.options[day.selectedIndex]?.textContent || ""}. ` +
+      `${month.options[month.selectedIndex]?.textContent || ""} ${year.value}.`;
+  };
+
+  day.addEventListener("change",update);
+  month.addEventListener("change",update);
+  year.addEventListener("change",update);
+
+  setDateSelects(prefix, initialDate);
+}
+
+function setDateSelects(prefix, date = new Date()) {
+  document.getElementById(prefix+"Day").value = String(date.getDate());
+  document.getElementById(prefix+"Month").value = String(date.getMonth()+1);
+  document.getElementById(prefix+"Year").value = String(date.getFullYear());
+  const status = document.getElementById(prefix+"DateStatus");
+  const monthName = document.getElementById(prefix+"Month").options[
+    document.getElementById(prefix+"Month").selectedIndex
+  ]?.textContent || "";
+  status.textContent = `Valgt dato: ${date.getDate()}. ${monthName} ${date.getFullYear()}.`;
+}
+
+function selectedIsoDate(prefix) {
+  const d = Number(document.getElementById(prefix+"Day").value);
+  const m = Number(document.getElementById(prefix+"Month").value);
+  const y = Number(document.getElementById(prefix+"Year").value);
+
+  const date = new Date(y,m-1,d,12,0,0);
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== m-1 ||
+    date.getDate() !== d
+  ) {
+    return null;
+  }
+
+  return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+}
+
+async function notifyHelperActivity(kind, id) {
+  try {
+    const {data,error} = await sb.functions.invoke("notify-helper-activity", {
+      body:{kind,id}
+    });
+    if (error) {
+      console.error("notify-helper-activity feilet:", error);
+      return false;
+    }
+    return data?.success === true;
+  } catch(error) {
+    console.error("notify-helper-activity feilet:", error);
+    return false;
+  }
 }
 
 function selectedYear(){ return Number(yearSelect.value); }
@@ -361,14 +461,17 @@ entryForm.onsubmit=async e=>{
   const pid=selectedPerson();
   if(!pid)return announce("Ingen person er valgt.");
 
+  const activityIsoDate = selectedIsoDate("activity");
+  if(!activityIsoDate)return announce("Velg en gyldig dato for oppdraget.");
+
   const type=activityType.value;
   const rate=type==="other" ? 0 : Number(rates[type]||0);
   const kmRate=Number(rates.mileage||0);
 
-  const {error}=await sb.from("helper_entries").insert({
+  const {data:entryRow,error}=await sb.from("helper_entries").insert({
     person_id:pid,
     source:"manual",
-    activity_date:activityDate.value,
+    activity_date:activityIsoDate,
     activity_type:type,
     description:description.value.trim()||null,
     rate_snapshot:rate,
@@ -378,21 +481,30 @@ entryForm.onsubmit=async e=>{
     kilometers:Number(kilometers.value||0),
     mileage_rate_snapshot:kmRate,
     created_by:authUser?.id||null
-  });
+  }).select("id").single();
   if(error)return announce("Kunne ikke lagre registreringen: "+error.message);
+
+  const entryNotificationSent = await notifyHelperActivity("entry",entryRow.id);
 
   entryForm.reset();
   kilometers.value="0";
   customAmountWrap.hidden=true;
-  activityDate.value=new Date().toISOString().slice(0,10);
+  setDateSelects("activity",new Date());
   await loadData();
-  announce("Registreringen er lagret.");
+  announce(
+    entryNotificationSent
+      ? "Registreringen er lagret og varsel er sendt til styret."
+      : "Registreringen er lagret. Varsling til styret kunne ikke bekreftes."
+  );
 };
 
 expenseForm.onsubmit=async e=>{
   e.preventDefault();
   const pid=selectedPerson();
   if(!pid)return announce("Ingen person er valgt.");
+
+  const expenseIsoDate = selectedIsoDate("expense");
+  if(!expenseIsoDate)return announce("Velg en gyldig dato for utlegget.");
 
   let storagePath=null, originalName=null, mime=null;
   const file=receiptFile.files?.[0];
@@ -410,7 +522,7 @@ expenseForm.onsubmit=async e=>{
 
   const {data:row,error}=await sb.from("helper_expenses").insert({
     person_id:pid,
-    expense_date:expenseDate.value,
+    expense_date:expenseIsoDate,
     amount:Number(expenseAmount.value),
     description:expenseDescription.value.trim(),
     receipt_storage_path:storagePath,
@@ -424,24 +536,16 @@ expenseForm.onsubmit=async e=>{
     return announce("Kunne ikke lagre utlegget: "+error.message);
   }
 
-  const p=people.find(x=>x.id===pid);
-  await sb.from("admin_notifications").insert({
-    notification_type:"helper_expense",
-    title:`Nytt utlegg: ${p?.full_name||"Hjelpetrener"}`,
-    message:`${expenseDescription.value.trim()} – ${money(expenseAmount.value)}`,
-    related_person_id:pid,
-    related_expense_id:row.id
-  });
-
-  // Send e-postvarsel. Selve kvitteringen forblir privat i portalen.
-  try{
-    await sb.functions.invoke("notify-helper-expense",{body:{expenseId:row.id}});
-  }catch{}
+  const expenseNotificationSent = await notifyHelperActivity("expense",row.id);
 
   expenseForm.reset();
-  expenseDate.value=new Date().toISOString().slice(0,10);
+  setDateSelects("expense",new Date());
   await loadData();
-  announce("Utlegget er lagret og administrator er varslet.");
+  announce(
+    expenseNotificationSent
+      ? "Utlegget er lagret og varsel er sendt til styret."
+      : "Utlegget er lagret. Varsling til styret kunne ikke bekreftes."
+  );
 };
 
 rateForm.onsubmit=async e=>{
@@ -530,6 +634,7 @@ personSelect.onchange=loadData;
   try{
     await requireSession();
     me=await getCurrentAppUser();
+    await renderPortalNavigation({current:"helper-settlement", me});
     ({data:{user:authUser}}=await sb.auth.getUser());
     currentPersonId=me?.person_id||null;
 
@@ -538,8 +643,8 @@ personSelect.onchange=loadData;
     }
     yearSelect.value=String(new Date().getFullYear());
 
-    activityDate.value=new Date().toISOString().slice(0,10);
-    expenseDate.value=new Date().toISOString().slice(0,10);
+    setupDateSelects("activity",new Date());
+    setupDateSelects("expense",new Date());
 
     if(isAdmin()){
       adminSection.hidden=false;

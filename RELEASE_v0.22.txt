@@ -1,0 +1,15 @@
+v0.22 – tilgjengelighet og arbeidsflyt
+
+- H1-overskrift ligger etter hovedmenyen på sider med navigasjon.
+- Placeholder-eksempler erstattet med statisk hjelpetekst.
+- Alle select/pop-up-valg får automatisk synlig og opplest «Valgt: ...»-status.
+- Medlemmer: Legg til person ligger ved Medlemsoversikt.
+- Ny person: etter opprettelse vises «Gå til personen».
+- Person: felt-ID-er er gjort Safari/VoiceOver-robuste.
+- Person: roller kan tildeles/fjernes direkte.
+- Person: systemadministrator kan invitere portalbruker direkte.
+- Roller: søk i rolletildelinger.
+- Hjelpetrener: dato velges med dag/måned/år-felter i stedet for type=date.
+- Hjelpetrener: hovedmenyen lastes for både hjelpetrener og admin.
+- Hjelpetrener: utlegg og oppdrag varsler styret via ny Edge Function.
+- Dokumentbibliotek: opplastingsseksjon vises bare når bruker faktisk har can_upload.

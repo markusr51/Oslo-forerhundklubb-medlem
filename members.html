@@ -34,7 +34,7 @@
 
 </head>
 <body>
-<header><img src="logo.png" alt="Oslo Førerhundklubb"><h1>Medlemmer</h1></header>
+<header><img src="logo.png" alt="Oslo Førerhundklubb"></header>
 <nav aria-label="Hovedmeny">
 <a href="admin-dashboard.html">Oversikt</a>
 <a href="members.html">Medlemmer</a>
@@ -44,7 +44,7 @@
 <a href="roles.html">Roller</a>
 <a href="library.html">Dokumentbibliotek</a>
 <a href="helper-settlement.html">Hjelpetreneroppgjør</a>
-<a href="new-person.html">Legg til person</a><a href="sms.html">SMS</a>
+<a href="sms.html">SMS</a>
 <a href="email.html">E-post</a>
 <a href="communication-history.html">Kommunikasjonshistorikk</a>
 <a href="admins.html">Brukere og tilganger</a>
@@ -52,6 +52,14 @@
 <button onclick="logout()">Logg ut</button>
 </nav>
 <main>
+<h1>Medlemmer</h1>
+
+<section aria-labelledby="memberOverviewHeading">
+<h2 id="memberOverviewHeading">Medlemsoversikt</h2>
+<p><a href="new-person.html">Legg til person</a></p>
+</section>
+
+
 <div class="actions"><button id="exportBtn">Eksporter medlemsliste til CSV</button></div>
 <p id="status" class="status" role="status" aria-live="polite">Laster medlemsregister …</p>
 <p><label for="search">Søk</label><br><input id="search" type="search"></p>

@@ -34,7 +34,6 @@
 
 </head>
 <body>
-<header><h1>Roller</h1></header>
 <nav aria-label="Hovedmeny">
 <a href="admin-dashboard.html">Oversikt</a>
 <a href="members.html">Medlemmer</a>
@@ -50,6 +49,8 @@
 <button type="button" onclick="logout()">Logg ut</button>
 </nav>
 <main>
+<h1>Roller</h1>
+
 <p id="status" class="status" role="status" aria-live="polite">Laster roller …</p>
 
 <section aria-labelledby="assignHeading">
@@ -64,12 +65,17 @@
 <label for="roleSelect">Rolle</label><br>
 <select id="roleSelect"><option value="">Ingen valgt</option></select>
 </p>
+<p id="roleStatus" class="status" role="status" aria-live="polite">Ingen rolle valgt.</p>
 <button type="submit">Legg til rolle</button>
 </form>
 </section>
 
 <section aria-labelledby="currentHeading">
 <h2 id="currentHeading">Personer og roller</h2>
+<p>
+<label for="roleAssignmentSearch">Søk i rolletildelinger</label><br>
+<input id="roleAssignmentSearch" type="search">
+</p>
 <table>
 <caption>Aktive roller per person</caption>
 <thead><tr><th>Person</th><th>Rolle</th><th>Handling</th></tr></thead>
@@ -112,13 +118,7 @@ async function loadAll() {
   roleSelect.innerHTML = `<option value="">Ingen valgt</option>` +
     roles.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
 
-  roleRows.innerHTML = assignments.map(a=>`
-    <tr>
-      <td>${esc(a.persons?.full_name || "")}</td>
-      <td>${esc(a.roles?.name || "")}</td>
-      <td><button type="button" data-remove-person="${a.person_id}" data-remove-role="${a.role_id}">Fjern rolle</button></td>
-    </tr>
-  `).join("") || `<tr><td colspan="3">Ingen aktive rolletildelinger.</td></tr>`;
+  renderAssignments(assignments);
 
   roleRows.querySelectorAll("[data-remove-person][data-remove-role]").forEach(btn=>{
     btn.onclick = async ()=>{
@@ -134,10 +134,51 @@ async function loadAll() {
   });
 }
 
+
+function bindRoleRemovalButtons() {
+  roleRows.querySelectorAll("[data-remove-person][data-remove-role]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      if (!confirm("Fjerne denne rollen fra personen?")) return;
+      const {error} = await sb.from("person_roles")
+        .update({is_active:false})
+        .eq("person_id",btn.dataset.removePerson)
+        .eq("role_id",btn.dataset.removeRole);
+      if (error) return announce("Kunne ikke fjerne rollen: " + error.message);
+      await loadAll();
+      announce("Rollen er fjernet.");
+    };
+  });
+}
+
+function renderAssignments(list) {
+  roleRows.innerHTML = list.map(a=>`
+    <tr>
+      <td>${esc(a.persons?.full_name || "")}</td>
+      <td>${esc(a.roles?.name || "")}</td>
+      <td><button type="button" data-remove-person="${a.person_id}" data-remove-role="${a.role_id}">Fjern rolle</button></td>
+    </tr>
+  `).join("") || `<tr><td colspan="3">Ingen rolletildelinger matcher søket.</td></tr>`;
+  bindRoleRemovalButtons();
+}
+
 personSelect.onchange = ()=>{
   const p = people.find(x=>x.id===personSelect.value);
   personStatus.textContent = p ? `Valgt person: ${p.full_name}.` : "Ingen person valgt.";
 };
+
+roleSelect.onchange = ()=>{
+  const r = roles.find(x=>x.id===roleSelect.value);
+  roleStatus.textContent = r ? `Valgt rolle: ${r.name}.` : "Ingen rolle valgt.";
+};
+
+roleAssignmentSearch.addEventListener("input", ()=>{
+  const q = roleAssignmentSearch.value.trim().toLowerCase();
+  const filtered = assignments.filter(a =>
+    String(a.persons?.full_name || "").toLowerCase().includes(q) ||
+    String(a.roles?.name || "").toLowerCase().includes(q)
+  );
+  renderAssignments(filtered);
+});
 
 assignForm.onsubmit = async e=>{
   e.preventDefault();
@@ -183,6 +224,7 @@ assignForm.onsubmit = async e=>{
   personSelect.value = "";
   roleSelect.value = "";
   personStatus.textContent = "Ingen person valgt.";
+  roleStatus.textContent = "Ingen rolle valgt.";
   await loadAll();
   announce("Rollen er lagt til.");
 };

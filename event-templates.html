@@ -34,7 +34,6 @@
 
 </head>
 <body>
-<header><h1>Arrangementsmaler</h1></header>
 <nav aria-label="Hovedmeny">
 <a href="admin-dashboard.html">Oversikt</a>
 <a href="members.html">Medlemmer</a>
@@ -49,6 +48,8 @@
 </nav>
 
 <main>
+<h1>Arrangementsmaler</h1>
+
 <p id="status" class="status" role="status" aria-live="polite">Laster …</p>
 
 <section aria-labelledby="newTemplateHeading">
@@ -57,7 +58,8 @@
 <input id="templateId" type="hidden">
 
 <p><label for="templateName">Navn på mal</label><br>
-<input id="templateName" type="text" required maxlength="150" placeholder="For eksempel Veterinærkveld"></p>
+<span id="templateNameHint">Eksempel: Veterinærkveld.</span><br>
+<input id="templateName" aria-describedby="templateNameHint" type="text" required maxlength="150"></p>
 
 <p><label for="eventTitle">Standard navn på arrangement</label><br>
 <input id="eventTitle" type="text" required maxlength="200"></p>

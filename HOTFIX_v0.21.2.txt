@@ -1,0 +1,20 @@
+v0.21.2 – rollebasert navigasjon
+
+Navigasjonen på medlemssidene genereres nå sentralt fra app.js.
+
+Vanlig medlem:
+- Min side
+- Dokumentbibliotek
+- Logg ut
+
+Hjelpetrener:
+- Min side
+- Dokumentbibliotek
+- Hjelpetreneroppgjør
+- Logg ut
+
+Administrator/systemadministrator:
+- full administrasjonsmeny
+- Brukere og tilganger vises bare for systemadministrator
+
+Denne endringen er i tillegg til sikkerhetskontrollen på selve adminsidene.

@@ -10,11 +10,11 @@
 <script src="app.js"></script>
 </head>
 <body>
-<header><h1>Dokumentbibliotek</h1></header>
-
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
 
 <main>
+<h1>Dokumentbibliotek</h1>
+
 <p id="status" class="status" role="status" aria-live="polite">Laster dokumentbibliotek …</p>
 
 <section id="adminSection" hidden aria-labelledby="adminHeading">
@@ -146,6 +146,7 @@ let documents = [];
 let roles = [];
 let groups = [];
 let currentFolder = null;
+let currentPermissions = {can_read:false,can_upload:false,can_edit:false,can_delete:false};
 
 function esc(v) {
   return String(v ?? "").replace(/[&<>"']/g,c=>({
@@ -268,7 +269,52 @@ function renderFolders() {
     folderAdmin.hidden = true;
   }
 
-  uploadSection.hidden = !currentFolderId;
+  uploadSection.hidden = !currentFolderId || !currentPermissions.can_upload;
+}
+
+
+async function loadMyFolderPermissions() {
+  if (!currentFolderId) {
+    currentPermissions = {
+      can_read:false,
+      can_upload:false,
+      can_edit:false,
+      can_delete:false
+    };
+    return;
+  }
+
+  if (isAdmin()) {
+    currentPermissions = {
+      can_read:true,
+      can_upload:true,
+      can_edit:true,
+      can_delete:true
+    };
+    return;
+  }
+
+  const {data,error} = await sb.rpc("library_my_permissions", {
+    target_folder_id: currentFolderId
+  });
+
+  if (error) {
+    console.error("Kunne ikke hente mapperettigheter:", error);
+    currentPermissions = {
+      can_read:false,
+      can_upload:false,
+      can_edit:false,
+      can_delete:false
+    };
+    return;
+  }
+
+  currentPermissions = data || {
+    can_read:false,
+    can_upload:false,
+    can_edit:false,
+    can_delete:false
+  };
 }
 
 async function loadDocuments() {
@@ -421,6 +467,8 @@ async function loadPermissions() {
 
 async function refreshCurrent() {
   await loadFolders();
+  await loadMyFolderPermissions();
+  renderFolders();
   await loadDocuments();
   await loadPermissions();
 }
