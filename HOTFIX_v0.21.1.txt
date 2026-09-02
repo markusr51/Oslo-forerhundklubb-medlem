@@ -1,0 +1,9 @@
+v0.21.1 sikkerhetshotfix
+
+- Alle admin-sider har tidlig rolle-kontroll og avviser vanlig medlem.
+- Admin-lenken Oversikt fjernes fra medlemssidene.
+- Eksisterende sidekontroller beholdes som ekstra lag.
+- SQL reetablerer admin-kontroll i admin_dashboard_data og RLS på kommunikasjonshistorikk/adminvarsler.
+- Denne pakken inkluderer også tidligere hotfixer for roles, groups, new-person, admins og set-password der de var tilgjengelige.
+
+Kjør setup_v0.21.1_security_hardening.sql først, deretter last opp hele GitHub-pakken.

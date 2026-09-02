@@ -8,6 +8,30 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script>
+(async()=>{
+  try {
+    await requireSession();
+    const __accessUser = await getCurrentAppUser();
+
+    if (
+      !__accessUser ||
+      !["admin","system_admin"].includes(__accessUser.app_role)
+    ) {
+      await sb.auth.signOut();
+      location.replace("index.html?forbidden=1");
+      return;
+    }
+
+    document.documentElement.dataset.adminAccess = "granted";
+  } catch (error) {
+    console.error("Administratortilgang kunne ikke bekreftes:", error);
+    try { await sb.auth.signOut(); } catch (_) {}
+    location.replace("index.html?forbidden=1");
+  }
+})();
+</script>
+
 </head>
 <body>
 <header><h1>Arrangementsmaler</h1></header>
