@@ -108,7 +108,7 @@ async function loadPeople() {
 async function loadGroups() {
   const {data,error} = await sb
     .from("groups")
-    .select("id,name,description,active,group_members(id,person_id,function_name,note,persons(full_name,email,phone,membership_status))")
+    .select("id,name,description,active,group_members(person_id,function_name,note,persons(full_name,email,phone,membership_status))")
     .order("name");
 
   if (error) {
@@ -136,7 +136,9 @@ async function loadGroups() {
       .map(p => `<option value="${p.id}">${esc(p.full_name)}</option>`)
       .join("");
 
-    const rows = members.map(m => `
+    const rows = members.map(m => {
+      const memberKey = `${g.id}-${m.person_id}`;
+      return `
       <tr>
         <td>${esc(m.persons?.full_name || "")}</td>
         <td>${esc(m.function_name || "Ingen funksjon")}</td>
@@ -144,36 +146,46 @@ async function loadGroups() {
         <td>${esc(m.persons?.email || "")}</td>
         <td>${esc(m.note || "")}</td>
         <td>
-          <button type="button" data-edit-member="${m.id}">Rediger</button>
-          <button type="button" data-remove-member="${m.id}">Fjern fra utvalget</button>
+          <button type="button"
+            data-edit-member="${memberKey}"
+            data-group-id="${g.id}"
+            data-person-id="${m.person_id}">Rediger</button>
+          <button type="button"
+            data-remove-member="${memberKey}"
+            data-group-id="${g.id}"
+            data-person-id="${m.person_id}">Fjern fra utvalget</button>
         </td>
       </tr>
-      <tr id="edit-row-${m.id}" hidden>
+      <tr id="edit-row-${memberKey}" hidden>
         <td colspan="6">
-          <form data-member-edit-form="${m.id}">
+          <form
+            data-member-edit-form="${memberKey}"
+            data-group-id="${g.id}"
+            data-person-id="${m.person_id}">
             <p>
               <strong>${esc(m.persons?.full_name || "")}</strong>
             </p>
             <p>
-              <label for="edit-function-${m.id}">Funksjon i gruppen</label><br>
-              <select id="edit-function-${m.id}" data-edit-function="${m.id}">
+              <label for="edit-function-${memberKey}">Funksjon i gruppen</label><br>
+              <select id="edit-function-${memberKey}" data-edit-function="${memberKey}">
                 ${functionOptions(m.function_name || "")}
               </select>
             </p>
-            <p id="custom-function-wrap-${m.id}" ${m.function_name && !commonFunctions.includes(m.function_name) ? "" : "hidden"}>
-              <label for="custom-function-${m.id}">Egendefinert funksjon</label><br>
-              <input id="custom-function-${m.id}" data-custom-function="${m.id}" type="text" maxlength="150" value="${esc(m.function_name && !commonFunctions.includes(m.function_name) ? m.function_name : "")}">
+            <p id="custom-function-wrap-${memberKey}" ${m.function_name && !commonFunctions.includes(m.function_name) ? "" : "hidden"}>
+              <label for="custom-function-${memberKey}">Egendefinert funksjon</label><br>
+              <input id="custom-function-${memberKey}" data-custom-function="${memberKey}" type="text" maxlength="150" value="${esc(m.function_name && !commonFunctions.includes(m.function_name) ? m.function_name : "")}">
             </p>
             <p>
-              <label for="edit-note-${m.id}">Notat</label><br>
-              <input id="edit-note-${m.id}" data-edit-note="${m.id}" type="text" maxlength="500" value="${esc(m.note || "")}">
+              <label for="edit-note-${memberKey}">Notat</label><br>
+              <input id="edit-note-${memberKey}" data-edit-note="${memberKey}" type="text" maxlength="500" value="${esc(m.note || "")}">
             </p>
             <button type="submit">Lagre endringer</button>
-            <button type="button" data-cancel-edit="${m.id}">Avbryt</button>
+            <button type="button" data-cancel-edit="${memberKey}">Avbryt</button>
           </form>
         </td>
       </tr>
-    `).join("") || `<tr><td colspan="6">Ingen personer i gruppen ennå.</td></tr>`;
+    `;
+    }).join("") || `<tr><td colspan="6">Ingen personer i gruppen ennå.</td></tr>`;
 
     return `
       <article class="group-card" data-group-card="${g.id}">
@@ -351,10 +363,12 @@ async function loadGroups() {
     form.onsubmit = async e => {
       e.preventDefault();
 
-      const id = form.dataset.memberEditForm;
-      const functionSel = groupList.querySelector(`[data-edit-function="${id}"]`);
-      const customInput = groupList.querySelector(`[data-custom-function="${id}"]`);
-      const noteInput = groupList.querySelector(`[data-edit-note="${id}"]`);
+      const memberKey = form.dataset.memberEditForm;
+      const groupId = form.dataset.groupId;
+      const personId = form.dataset.personId;
+      const functionSel = groupList.querySelector(`[data-edit-function="${memberKey}"]`);
+      const customInput = groupList.querySelector(`[data-custom-function="${memberKey}"]`);
+      const noteInput = groupList.querySelector(`[data-edit-note="${memberKey}"]`);
 
       let functionName = functionSel?.value || "";
       if (functionName === "Annet") {
@@ -371,7 +385,8 @@ async function loadGroups() {
           function_name: functionName || null,
           note: noteInput?.value.trim() || null
         })
-        .eq("id",id);
+        .eq("group_id",groupId)
+        .eq("person_id",personId);
 
       if (error) {
         announce("Kunne ikke lagre endringene: " + error.message);
@@ -389,7 +404,8 @@ async function loadGroups() {
 
       const {error} = await sb.from("group_members")
         .delete()
-        .eq("id",btn.dataset.removeMember);
+        .eq("group_id",btn.dataset.groupId)
+        .eq("person_id",btn.dataset.personId);
 
       if (error) {
         announce("Kunne ikke fjerne personen: " + error.message);
