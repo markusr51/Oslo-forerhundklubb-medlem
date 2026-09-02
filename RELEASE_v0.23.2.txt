@@ -1,0 +1,7 @@
+v0.23.2 – JA/NEI integrert i arrangement
+
+- Vanlig Invitasjon og kommunikasjon på arrangementet brukes.
+- Når arrangementet har JA/NEI via e-post aktivert, går e-post automatisk via send-event-reply-invitations.
+- Separat E-post hurtigpåmelding er fjernet fra menyen.
+- Testutsendelse fortsetter via vanlig send-email.
+- Motta-funksjonen skal sende bekreftelse til medlemmet etter gyldig svar.

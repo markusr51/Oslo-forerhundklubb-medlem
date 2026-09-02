@@ -473,6 +473,7 @@ async function loadEvent() {
     <dt>Status</dt><dd>${esc(eventStatusText(data.status))}</dd>
     <dt>Påmeldingsfrist</dt><dd>${esc(data.registration_deadline ? norwegianDate(data.registration_deadline) : "Ingen")}</dd>
     <dt>Beskrivelse</dt><dd>${esc(data.description || "Ingen beskrivelse")}</dd>
+    <dt>JA/NEI via e-post</dt><dd>${data.allow_email_reply_registration && !data.registration_form_enabled ? "Aktivert" : "Av"}</dd>
   `;
 
   cancelBtn.hidden = data.status === "cancelled";
@@ -847,22 +848,48 @@ async function sendCommunication(test) {
     if (!rec.length) {
       out.push("E-post: ingen gyldige mottakere.");
     } else {
-      const {data,error} = await sb.functions.invoke("send-email", {
-        body:{
-          recipients:rec,
-          subject:communicationSubject.value.trim() || `Invitasjon: ${currentEvent.title}`,
-          text:msg,
-          attachments:calendarCheck.checked ? [eventIcsAttachment(currentEvent)] : [],
-          test,
-          eventId,
-          audienceType: audienceMode.value,
-          audienceLabel: audienceMode.options[audienceMode.selectedIndex]?.text || "Manuell målgruppe"
-        }
-      });
+      const useReplyRegistration =
+        currentEvent?.allow_email_reply_registration === true &&
+        currentEvent?.registration_form_enabled !== true &&
+        !test;
+
+      let data, error;
+
+      if (useReplyRegistration) {
+        const personIds = a
+          .filter(p => p?.id && p?.email)
+          .map(p => p.id);
+
+        ({data,error} = await sb.functions.invoke("send-event-reply-invitations", {
+          body:{
+            eventId,
+            personIds,
+            subject:communicationSubject.value.trim() || `Invitasjon: ${currentEvent.title}`,
+            message:msg,
+            audienceType: audienceMode.value,
+            audienceLabel: audienceMode.options[audienceMode.selectedIndex]?.text || "Manuell målgruppe"
+          }
+        }));
+      } else {
+        ({data,error} = await sb.functions.invoke("send-email", {
+          body:{
+            recipients:rec,
+            subject:communicationSubject.value.trim() || `Invitasjon: ${currentEvent.title}`,
+            text:msg,
+            attachments:calendarCheck.checked ? [eventIcsAttachment(currentEvent)] : [],
+            test,
+            eventId,
+            audienceType: audienceMode.value,
+            audienceLabel: audienceMode.options[audienceMode.selectedIndex]?.text || "Manuell målgruppe"
+          }
+        }));
+      }
 
       out.push(error
         ? "E-post feilet: " + error.message
-        : `E-post: sendt ${data.sent || 0}, feilet ${data.failed || 0}.`);
+        : useReplyRegistration
+          ? `E-post med JA/NEI-svar: sendt ${data.sent || 0}, feilet ${data.failed || 0}, hoppet over ${data.skipped || 0}.`
+          : `E-post: sendt ${data.sent || 0}, feilet ${data.failed || 0}.`);
     }
   }
 
