@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mine utlegg – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<nav id="portalNav" aria-label="Hovedmeny"></nav>
+<main>
+<h1>Mine utlegg</h1>
+<p id="status" class="status" role="status" aria-live="polite">Laster …</p>
+
+<section aria-labelledby="newExpenseHeading">
+<h2 id="newExpenseHeading">Registrer utlegg</h2>
+<form id="expenseForm">
+<fieldset>
+<legend>Dato</legend>
+<p><label for="expenseDay">Dag</label><br><select id="expenseDay" data-selection-feedback="off"></select></p>
+<p><label for="expenseMonth">Måned</label><br><select id="expenseMonth" data-selection-feedback="off"></select></p>
+<p><label for="expenseYear">År</label><br><select id="expenseYear" data-selection-feedback="off"></select></p>
+<p id="dateStatus" class="status" role="status" aria-live="polite"></p>
+</fieldset>
+<p><label for="amount">Beløp</label><br><input id="amount" type="number" min="0" step="0.01" required></p>
+<p><label for="description">Beskrivelse</label><br><input id="description" type="text" maxlength="500" required></p>
+<p><label for="receipt">Kvittering</label><br><input id="receipt" type="file" accept=".pdf,image/*"></p>
+<button type="submit">Registrer utlegg</button>
+</form>
+</section>
+
+<section aria-labelledby="myExpensesHeading">
+<h2 id="myExpensesHeading">Mine registrerte utlegg</h2>
+<table>
+<caption>Utlegg</caption>
+<thead><tr><th>Dato</th><th>Beskrivelse</th><th>Beløp</th><th>Status</th><th>Kvittering</th></tr></thead>
+<tbody id="rows"></tbody>
+</table>
+</section>
+</main>
+<script>
+let me=null, personId=null;
+
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+function money(v){return `${Number(v||0).toFixed(2)} kr`;}
+function statusText(v){return ({registered:"Registrert",approved:"Godkjent",paid:"Utbetalt",rejected:"Avvist"})[v]||v;}
+function safeName(filename){return String(filename||"kvittering").normalize("NFKD").replace(/[^\w.-]+/g,"_").slice(0,120);}
+
+function setupDate(){
+  expenseDay.innerHTML=Array.from({length:31},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("");
+  expenseMonth.innerHTML=["januar","februar","mars","april","mai","juni","juli","august","september","oktober","november","desember"]
+    .map((n,i)=>`<option value="${i+1}">${n}</option>`).join("");
+  const y=new Date().getFullYear();
+  expenseYear.innerHTML=Array.from({length:7},(_,i)=>`<option value="${y-3+i}">${y-3+i}</option>`).join("");
+  const d=new Date();
+  expenseDay.value=String(d.getDate()); expenseMonth.value=String(d.getMonth()+1); expenseYear.value=String(d.getFullYear());
+  const update=()=>{dateStatus.textContent=`Valgt dato: ${expenseDay.value}. ${expenseMonth.options[expenseMonth.selectedIndex].textContent} ${expenseYear.value}.`;};
+  [expenseDay,expenseMonth,expenseYear].forEach(x=>x.addEventListener("change",update)); update();
+}
+function isoDate(){
+  const d=Number(expenseDay.value),m=Number(expenseMonth.value),y=Number(expenseYear.value);
+  const date=new Date(y,m-1,d,12);
+  if(date.getFullYear()!==y||date.getMonth()!==m-1||date.getDate()!==d)return null;
+  return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+}
+async function load(){
+  const {data,error}=await sb.from("general_expenses").select("*").eq("person_id",personId).order("expense_date",{ascending:false});
+  if(error)return announce("Kunne ikke hente utlegg: "+error.message);
+  rows.innerHTML=(data||[]).map(x=>`
+    <tr><td>${esc(x.expense_date)}</td><td>${esc(x.description)}</td><td>${esc(money(x.amount))}</td><td>${esc(statusText(x.status))}</td>
+    <td>${x.receipt_storage_path?`<button type="button" data-receipt="${esc(x.receipt_storage_path)}">Åpne kvittering</button>`:"Ingen"}</td></tr>`).join("")
+    ||'<tr><td colspan="5">Ingen utlegg registrert.</td></tr>';
+  rows.querySelectorAll("[data-receipt]").forEach(b=>b.onclick=async()=>{
+    const {data,error}=await sb.storage.from("general-expense-receipts").createSignedUrl(b.dataset.receipt,60);
+    if(error)return announce("Kunne ikke åpne kvitteringen: "+error.message);
+    location.href=data.signedUrl;
+  });
+}
+
+expenseForm.onsubmit=async e=>{
+  e.preventDefault();
+  const date=isoDate(); if(!date)return announce("Velg en gyldig dato.");
+  let path=null, original=null, mime=null;
+  const file=receipt.files?.[0];
+  if(file){
+    original=file.name; mime=file.type||null;
+    path=`${personId}/${crypto.randomUUID()}-${safeName(file.name)}`;
+    const {error}=await sb.storage.from("general-expense-receipts").upload(path,file,{upsert:false,contentType:file.type||undefined});
+    if(error)return announce("Kvitteringen kunne ikke lastes opp: "+error.message);
+  }
+  const {data,error}=await sb.from("general_expenses").insert({
+    person_id:personId,expense_date:date,amount:Number(amount.value),
+    description:description.value.trim(),receipt_storage_path:path,
+    receipt_original_name:original,receipt_mime_type:mime,status:"registered"
+  }).select("id").single();
+  if(error){
+    if(path)await sb.storage.from("general-expense-receipts").remove([path]);
+    return announce("Utlegget kunne ikke lagres: "+error.message);
+  }
+  try{await sb.functions.invoke("notify-helper-activity",{body:{kind:"general_expense",id:data.id}});}catch{}
+  expenseForm.reset(); setupDate(); await load();
+  announce("Utlegget er registrert og sendt til behandling.");
+};
+
+(async()=>{
+  await requireSession(); me=await getCurrentAppUser(); await renderPortalNavigation({current:"my-expenses",me});
+  personId=me?.person_id;
+  if(!personId)return announce("Brukeren mangler personkobling.");
+  setupDate(); await load(); announce("Mine utlegg er klare.");
+})();
+</script>
+</body>
+</html>

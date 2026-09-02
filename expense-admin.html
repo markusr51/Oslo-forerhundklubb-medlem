@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Utlegg – Oslo Førerhundklubb</title><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script>
+</head>
+<body>
+<nav id="portalNav" aria-label="Hovedmeny"></nav>
+<main><h1>Utlegg</h1><p id="status" class="status" role="status" aria-live="polite">Laster …</p>
+<p><label for="yearSelect">År</label><br><select id="yearSelect"></select></p>
+<table><caption>Registrerte ordinære utlegg</caption>
+<thead><tr><th>Dato</th><th>Person</th><th>Beskrivelse</th><th>Beløp</th><th>Status</th><th>Kvittering</th><th>Handling</th></tr></thead>
+<tbody id="rows"></tbody></table></main>
+<script>
+let me=null, items=[];
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+function money(v){return `${Number(v||0).toFixed(2)} kr`;}
+function st(v){return ({registered:"Registrert",approved:"Godkjent",paid:"Utbetalt",rejected:"Avvist"})[v]||v;}
+async function load(){
+ const y=Number(yearSelect.value);
+ const {data,error}=await sb.from("general_expenses").select("*,persons(full_name)").gte("expense_date",`${y}-01-01`).lte("expense_date",`${y}-12-31`).order("expense_date",{ascending:false});
+ if(error)return announce("Kunne ikke hente utlegg: "+error.message); items=data||[];
+ rows.innerHTML=items.map(x=>`<tr><td>${esc(x.expense_date)}</td><td>${esc(x.persons?.full_name||"")}</td><td>${esc(x.description)}</td><td>${esc(money(x.amount))}</td><td>${esc(st(x.status))}</td>
+ <td>${x.receipt_storage_path?`<button data-open="${x.id}">Åpne</button>`:"Ingen"}</td>
+ <td><button data-status="${x.id}" data-value="approved">Godkjenn</button> <button data-status="${x.id}" data-value="paid">Utbetalt</button> <button data-status="${x.id}" data-value="rejected">Avvis</button></td></tr>`).join("")||'<tr><td colspan="7">Ingen utlegg.</td></tr>';
+ rows.querySelectorAll("[data-status]").forEach(b=>b.onclick=async()=>{const {error}=await sb.from("general_expenses").update({status:b.dataset.value,reviewed_at:new Date().toISOString()}).eq("id",b.dataset.status);if(error)return announce(error.message);await load();announce("Status er oppdatert.");});
+ rows.querySelectorAll("[data-open]").forEach(b=>b.onclick=async()=>{const x=items.find(i=>i.id===b.dataset.open);const {data,error}=await sb.storage.from("general-expense-receipts").createSignedUrl(x.receipt_storage_path,60);if(error)return announce(error.message);location.href=data.signedUrl;});
+}
+(async()=>{await requireSession();me=await getCurrentAppUser();if(!["admin","system_admin"].includes(me?.app_role)){location.replace("my-page.html");return;}await renderPortalNavigation({current:"expense-admin",me});const y=new Date().getFullYear();yearSelect.innerHTML=Array.from({length:5},(_,i)=>`<option>${y-2+i}</option>`).join("");yearSelect.value=String(y);yearSelect.onchange=load;await load();announce("Utleggsoversikten er klar.");})();
+</script></body></html>

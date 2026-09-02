@@ -1,0 +1,21 @@
+<!doctype html><html lang="no"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Påmelding – Oslo Førerhundklubb</title><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script></head>
+<body><nav id="portalNav" aria-label="Hovedmeny"></nav><main><h1>Påmeldingsskjema</h1><p id="status" class="status" role="status" aria-live="polite">Laster …</p>
+<section id="eventInfo"></section><form id="form"></form></main>
+<script>
+let me=null,eventId=new URLSearchParams(location.search).get("event"),fields=[];
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+function renderField(f,a){
+ const id=`field-${f.id}`,required=f.required?" required":"";
+ if(f.field_type==="textarea")return `<p><label for="${id}">${esc(f.label)}</label><br><textarea id="${id}" data-field="${f.id}"${required}>${esc(a||"")}</textarea></p>`;
+ if(f.field_type==="yes_no")return `<p><label for="${id}">${esc(f.label)}</label><br><select id="${id}" data-field="${f.id}"${required}><option value="">Ingen valgt</option><option value="Ja"${a==="Ja"?" selected":""}>Ja</option><option value="Nei"${a==="Nei"?" selected":""}>Nei</option></select></p>`;
+ if(f.field_type==="select"){const opts=Array.isArray(f.options_json)?f.options_json:[];return `<p><label for="${id}">${esc(f.label)}</label><br><select id="${id}" data-field="${f.id}"${required}><option value="">Ingen valgt</option>${opts.map(o=>`<option${String(a)===String(o)?" selected":""}>${esc(o)}</option>`).join("")}</select></p>`;}
+ const type=f.field_type==="number"?"number":"text";return `<p><label for="${id}">${esc(f.label)}</label><br><input id="${id}" data-field="${f.id}" type="${type}" value="${esc(a||"")}"${required}></p>`;
+}
+form.onsubmit=async e=>{e.preventDefault();const answers={};form.querySelectorAll("[data-field]").forEach(x=>answers[x.dataset.field]=x.value);const {error}=await sb.rpc("save_my_registration_answers",{target_event_id:eventId,answers_json:answers});if(error)return announce("Svarene kunne ikke lagres: "+error.message);announce("Påmeldingsopplysningene er lagret.");};
+(async()=>{await requireSession();me=await getCurrentAppUser();await renderPortalNavigation({current:"my-page",me});const {data:event,error:eventError}=await sb.from("events").select("id,title,event_date,location,allow_self_registration,registration_form_enabled").eq("id",eventId).single();if(eventError)return announce(eventError.message);eventInfo.innerHTML=`<h2>${esc(event.title)}</h2><p>${esc(event.event_date)} – ${esc(event.location||"")}</p>`;
+let r=await sb.from("event_registration_fields").select("*").eq("event_id",eventId).eq("active",true).order("sort_order");if(r.error)return announce(r.error.message);fields=r.data||[];
+r=await sb.from("event_registration_answers").select("field_id,answer_text").eq("event_id",eventId).eq("person_id",me.person_id);const map=Object.fromEntries((r.data||[]).map(a=>[a.field_id,a.answer_text]));
+form.innerHTML=fields.map(f=>renderField(f,map[f.id])).join("")+'<button type="submit">Lagre påmeldingsopplysninger</button>';announce("Påmeldingsskjemaet er klart.");})();
+</script></body></html>

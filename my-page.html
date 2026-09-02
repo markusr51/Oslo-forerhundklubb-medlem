@@ -25,6 +25,13 @@
 <section aria-labelledby="profileHeading">
 <h2 id="profileHeading">Mine opplysninger</h2>
 <dl id="profileInfo"></dl>
+<h3>Endre kontaktopplysninger</h3>
+<form id="contactForm">
+<p><label for="myPhone">Mobilnummer</label><br><input id="myPhone" type="tel"></p>
+<p><label for="myEmail">E-postadresse</label><br><input id="myEmail" type="email"></p>
+<p>Ved endring av e-post sender systemet en bekreftelsesmelding til den nye adressen før innloggingsadressen endres.</p>
+<button type="submit">Lagre kontaktopplysninger</button>
+</form>
 </section>
 
 <section aria-labelledby="rolesHeading">
@@ -89,6 +96,9 @@ function participantText(v) {
 function renderProfile() {
   const p = dashboard.person || {};
 
+  myPhone.value = p.phone || "";
+  myEmail.value = p.email || "";
+
   profileInfo.innerHTML = `
     <dt>Navn</dt>
     <dd>${esc(p.name || me?.display_name || "")}</dd>
@@ -145,6 +155,13 @@ function renderEvents() {
             <dd>${esc(e.associated_function)}</dd>
           ` : ""}
         </dl>
+        ${e.allow_self_registration ? `
+          <p>
+            <button type="button" data-event-signup="${esc(e.id)}">Meld meg på</button>
+            <button type="button" data-event-decline="${esc(e.id)}">Meld meg av</button>
+            ${e.registration_form_enabled ? `<a href="event-registration.html?event=${encodeURIComponent(e.id)}">Åpne påmeldingsskjema</a>` : ""}
+          </p>
+        ` : ""}
       </article>
     `).join("")
     : "<p>Ingen kommende arrangementer er knyttet til deg akkurat nå.</p>";
@@ -189,10 +206,57 @@ function renderHelper() {
   `;
 }
 
+
+contactForm.onsubmit = async e=>{
+  e.preventDefault();
+  const phone=myPhone.value.trim();
+  const email=myEmail.value.trim();
+
+  const {error:phoneError}=await sb.rpc("update_my_phone",{new_phone:phone||null});
+  if(phoneError)return announce("Kunne ikke lagre mobilnummeret: "+phoneError.message);
+
+  const {data:{user}}=await sb.auth.getUser();
+  const currentEmail=String(user?.email||"").trim().toLowerCase();
+  if(email && email.toLowerCase()!==currentEmail){
+    const redirectTo=new URL("my-page.html",location.href).href;
+    const {error:emailError}=await sb.auth.updateUser({email},{emailRedirectTo:redirectTo});
+    if(emailError)return announce("Mobilnummeret ble lagret, men e-postendringen feilet: "+emailError.message);
+    announce("Mobilnummeret er lagret. Bekreft den nye e-postadressen via e-posten som er sendt.");
+    return;
+  }
+  announce("Kontaktopplysningene er lagret.");
+};
+
+eventList.addEventListener("click",async e=>{
+  const signup=e.target.closest("[data-event-signup]");
+  const decline=e.target.closest("[data-event-decline]");
+  if(!signup&&!decline)return;
+  const eventId=(signup||decline).dataset.eventSignup || (signup||decline).dataset.eventDecline;
+  let guests=0;
+  if(signup){
+    const event=(dashboard.events||[]).find(x=>x.id===eventId);
+    if(event?.allow_guests){
+      const value=prompt(`Antall gjester (0–${Number(event.max_guests||0)}):`,"0");
+      if(value===null)return;
+      guests=Math.max(0,Math.min(Number(event.max_guests||0),Number(value||0)));
+    }
+  }
+  const {error}=await sb.rpc("set_my_event_participation",{
+    target_event_id:eventId,
+    target_status:signup?"attending":"declined",
+    target_guest_count:guests
+  });
+  if(error)return announce("Påmeldingen kunne ikke lagres: "+error.message);
+  announce(signup?"Du er meldt på arrangementet.":"Du er meldt av arrangementet.");
+  const {data,error:reloadError}=await sb.rpc("my_portal_dashboard");
+  if(!reloadError){dashboard=data||{};renderEvents();}
+});
+
 (async()=>{
   try {
     await requireSession();
     me = await getCurrentAppUser();
+    try { await sb.rpc("sync_my_auth_email"); } catch (_) {}
 
     await renderPortalNavigation({current:"my-page", me});
 

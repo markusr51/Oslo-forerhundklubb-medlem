@@ -133,12 +133,22 @@ async function renderPortalNavigation({
   const nav = document.getElementById(targetId);
   if (!nav) return;
 
+  if (!document.getElementById(`${targetId}-heading`)) {
+    const heading = document.createElement("h2");
+    heading.id = `${targetId}-heading`;
+    heading.textContent = "Hovedmeny";
+    nav.insertAdjacentElement("beforebegin", heading);
+    nav.setAttribute("aria-labelledby", heading.id);
+    nav.removeAttribute("aria-label");
+  }
+
   const appUser = me || await getCurrentAppUser();
   const caps = await currentPortalCapabilities(appUser);
 
   const memberItems = [
     ["my-page.html", "Min side", "my-page"],
-    ["library.html", "Dokumentbibliotek", "library"]
+    ["library.html", "Dokumentbibliotek", "library"],
+    ["my-expenses.html", "Mine utlegg", "my-expenses"]
   ];
 
   if (caps.isHelper) {
@@ -158,6 +168,8 @@ async function renderPortalNavigation({
     ["roles.html", "Roller", "roles"],
     ["library.html", "Dokumentbibliotek", "library"],
     ["helper-settlement.html", "Hjelpetreneroppgjør", "helper-settlement"],
+    ["helper-overview.html", "Hjelpetreneroversikt", "helper-overview"],
+    ["expense-admin.html", "Utlegg", "expense-admin"],
     ["sms.html", "SMS", "sms"],
     ["email.html", "E-post", "email"],
     ["communication-history.html", "Kommunikasjonshistorikk", "communication-history"]

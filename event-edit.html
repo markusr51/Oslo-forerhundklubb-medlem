@@ -35,6 +35,7 @@
 <script src="events.js"></script>
 </head>
 <body>
+<h2 class="main-menu-heading">Hovedmeny</h2>
 <nav aria-label="Hovedmeny">
 <a href="admin-dashboard.html">Oversikt</a>
 <a href="events.html">Til arrangementer</a>
@@ -341,6 +342,10 @@ form.addEventListener("submit", async (event) => {
       title,
       location: locationInput.value.trim() || null,
       description: descriptionInput.value.trim() || null,
+    allow_self_registration: allowSelfRegistration.checked,
+    allow_guests: allowGuests.checked,
+    max_guests: Number(maxGuests.value || 0),
+    registration_form_enabled: registrationFormEnabled.checked,
       event_date: eventDate,
       end_date: multiDayToggle.checked ? endDate : null,
       start_time: startTime,

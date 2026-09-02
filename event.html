@@ -11,6 +11,7 @@
 <script src="events.js"></script>
 </head>
 <body>
+<h2 class="main-menu-heading">Hovedmeny</h2>
 <nav aria-label="Hovedmeny">
 <a href="admin-dashboard.html">Oversikt</a>
 <a href="events.html">Til arrangementer</a>
@@ -407,6 +408,19 @@ Målgruppe: Alle aktive personer.
 <h2 id="deleteHeading">Permanent sletting</h2>
 <p>Permanent sletting er bare tilgjengelig for systemadministrator.</p>
 <button id="deleteBtn" type="button">Slett arrangement permanent</button>
+</section>
+<section id="registrationFieldsAdmin" aria-labelledby="registrationFieldsHeading">
+<h2 id="registrationFieldsHeading">Påmeldingsskjema</h2>
+<form id="registrationFieldForm">
+<p><label for="fieldLabel">Spørsmål / feltnavn</label><br><input id="fieldLabel" type="text" required maxlength="300"></p>
+<p><label for="fieldType">Felttype</label><br><select id="fieldType">
+<option value="text">Kort tekst</option><option value="textarea">Lang tekst</option><option value="yes_no">Ja / nei</option><option value="number">Tall</option><option value="select">Valgliste</option>
+</select></p>
+<p><label for="fieldOptions">Valg for valgliste, ett valg per linje</label><br><textarea id="fieldOptions" rows="4"></textarea></p>
+<p><label><input id="fieldRequired" type="checkbox"> Obligatorisk</label></p>
+<button type="submit">Legg til spørsmål</button>
+</form>
+<ul id="registrationFieldList"></ul>
 </section>
 </main>
 
@@ -1541,5 +1555,16 @@ deleteBtn.onclick = async () => {
   }
 })();
 </script>
-</body>
+<script>
+let registrationFields=[];
+async function loadRegistrationFields(){
+  const {data,error}=await sb.from("event_registration_fields").select("*").eq("event_id",eventId).order("sort_order");
+  if(error)return announce("Kunne ikke hente påmeldingsfelter: "+error.message);
+  registrationFields=data||[];
+  registrationFieldList.innerHTML=registrationFields.map(f=>`<li>${f.label} – ${f.field_type}${f.required?" – obligatorisk":""} <button type="button" data-del-field="${f.id}">Slett</button></li>`).join("")||"<li>Ingen ekstra spørsmål.</li>";
+  registrationFieldList.querySelectorAll("[data-del-field]").forEach(b=>b.onclick=async()=>{const {error}=await sb.from("event_registration_fields").delete().eq("id",b.dataset.delField);if(error)return announce(error.message);await loadRegistrationFields();announce("Spørsmålet er slettet.");});
+}
+registrationFieldForm.onsubmit=async e=>{e.preventDefault();const options=fieldType.value==="select"?fieldOptions.value.split("\n").map(x=>x.trim()).filter(Boolean):[];const {error}=await sb.from("event_registration_fields").insert({event_id:eventId,label:fieldLabel.value.trim(),field_type:fieldType.value,required:fieldRequired.checked,options_json:options,sort_order:registrationFields.length+1,active:true});if(error)return announce("Kunne ikke legge til spørsmål: "+error.message);registrationFieldForm.reset();await loadRegistrationFields();announce("Spørsmålet er lagt til.");};
+(async()=>{try{await requireSession();const u=await getCurrentAppUser();if(["admin","system_admin"].includes(u?.app_role))await loadRegistrationFields();else registrationFieldsAdmin.hidden=true;}catch{registrationFieldsAdmin.hidden=true;}})();
+</script></body>
 </html>

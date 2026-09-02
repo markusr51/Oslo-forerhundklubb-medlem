@@ -1,0 +1,17 @@
+v0.23 – stor funksjonsrunde
+
+Inkludert:
+- H2 «Hovedmeny» foran navigasjon.
+- Mine utlegg + administrativ utleggsoversikt og kvitteringer.
+- Min side: endre mobil, be om sikker e-postendring.
+- Min side: på-/avmelding og gjester for arrangementer som tillater det.
+- Dynamiske påmeldingsskjemaer per arrangement.
+- Hjelpetreneroversikt per år + CSV for Excel.
+- Ny adminmeny for Hjelpetreneroversikt og Utlegg.
+- notify-helper-activity utvidet til ordinære utlegg.
+
+Ikke inkludert i denne versjonen:
+- innkommende JA/NEI på e-post
+- Fiken-integrasjon
+- full personlig offentlig påmeldingslenke uten innlogging
+- kopiering av påmeldingsfelter inn i arrangementsmaler (datamodellen er forberedt, UI tas etter kjernetest)
