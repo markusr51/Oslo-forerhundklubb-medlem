@@ -205,11 +205,40 @@ inviteForm.onsubmit = async e=>{
   );
 
   if (error) {
-    announce("Invitasjon feilet: " + error.message);
+    let detail = "";
+    try {
+      if (error.context && typeof error.context.clone === "function") {
+        const response = error.context.clone();
+        try {
+          const payload = await response.json();
+          detail = payload?.error || payload?.message || JSON.stringify(payload);
+        } catch {
+          detail = await response.text();
+        }
+      }
+    } catch (_) {}
+
+    const message =
+      "Invitasjon feilet: " +
+      (detail || error.message || "ukjent feil");
+
+    console.error("invite-portal-user:", error, data);
+    announce(message);
+    alert(message);
     return;
   }
 
-  announce(data?.message || "Aktiveringsinvitasjon sendt.");
+  if (!data?.success) {
+    const message =
+      "Invitasjon feilet: " +
+      (data?.error || data?.message || "ukjent feil");
+    console.error("invite-portal-user returnerte ikke success:", data);
+    announce(message);
+    alert(message);
+    return;
+  }
+
+  announce(data.message || "Aktiveringsinvitasjon sendt.");
   inviteForm.reset();
   selectedPerson.textContent = "Ingen person valgt.";
   await loadUsers();
