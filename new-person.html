@@ -27,13 +27,51 @@
 </form>
 </main>
 <script>
-(async()=>{await requireSession()})();
-f.addEventListener('submit',async e=>{
+const personForm = document.getElementById("f");
+const nameInput = document.getElementById("name");
+const emailInput = document.getElementById("email");
+const phoneInput = document.getElementById("phone");
+
+(async()=>{
+  try {
+    await requireSession();
+  } catch (e) {
+    console.error(e);
+    announce("Kunne ikke kontrollere innloggingen.");
+  }
+})();
+
+personForm.addEventListener("submit", async e => {
   e.preventDefault();
-  const {error}=await sb.from('persons').insert({full_name:name.value.trim(),email:email.value.trim()||null,phone:phone.value.trim()||null,membership_status:'active'});
-  if(error){announce('Kunne ikke opprette: '+error.message);return;}
-  announce('Person opprettet.');
-  f.reset();
+
+  const fullName = nameInput.value.trim();
+  const emailValue = emailInput.value.trim();
+  const phoneValue = phoneInput.value.trim();
+
+  if (!fullName) {
+    announce("Navn må fylles ut.");
+    nameInput.focus();
+    return;
+  }
+
+  announce("Oppretter person …");
+
+  const {error} = await sb.from("persons").insert({
+    full_name: fullName,
+    email: emailValue || null,
+    phone: phoneValue || null,
+    membership_status: "active"
+  });
+
+  if (error) {
+    console.error(error);
+    announce("Kunne ikke opprette person: " + error.message);
+    return;
+  }
+
+  personForm.reset();
+  announce("Personen er opprettet.");
+  nameInput.focus();
 });
 </script>
 </body></html>
