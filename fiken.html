@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fiken – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<nav id="portalNav" aria-label="Hovedmeny"></nav>
+<main>
+<h1>Fiken</h1>
+<p id="status" class="status" role="status" aria-live="polite">
+Fiken-tilkoblingen er ikke testet ennå.
+</p>
+
+<section aria-labelledby="connectionHeading">
+<h2 id="connectionHeading">Tilkobling</h2>
+<p>Denne testen leser bare hvilke foretak API-nøkkelen har tilgang til. Den oppretter eller endrer ingenting i Fiken.</p>
+<p><button type="button" id="testConnectionBtn">Test Fiken-tilkobling</button></p>
+
+<div id="companyResult" hidden>
+<h3>Foretak fra Fiken</h3>
+<dl id="companyDetails"></dl>
+</div>
+</section>
+</main>
+
+<script>
+let me = null;
+
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    "\"":"&quot;",
+    "'":"&#39;"
+  }[c]));
+}
+
+testConnectionBtn.addEventListener("click", async () => {
+  testConnectionBtn.disabled = true;
+  companyResult.hidden = true;
+  announce("Tester Fiken-tilkoblingen …");
+
+  try {
+    const {data,error} = await sb.functions.invoke("fiken-test-connection", {
+      body: {}
+    });
+
+    if (error) {
+      announce("Fiken-testen feilet: " + error.message);
+      return;
+    }
+
+    if (!data?.success) {
+      announce("Fiken-testen feilet: " + (data?.error || "Ukjent feil."));
+      return;
+    }
+
+    const companies = Array.isArray(data.companies) ? data.companies : [];
+
+    if (!companies.length) {
+      announce("Tilkoblingen virker, men API-nøkkelen returnerte ingen foretak.");
+      return;
+    }
+
+    companyDetails.innerHTML = companies.map((company,index) => `
+      <dt>Foretak ${index + 1}</dt>
+      <dd>${esc(company.name || "Navn mangler")}</dd>
+      <dt>Organisasjonsnummer</dt>
+      <dd>${esc(company.organizationNumber || "Ikke oppgitt")}</dd>
+      <dt>Fiken company slug</dt>
+      <dd>${esc(company.slug || "Ikke oppgitt")}</dd>
+    `).join("");
+
+    companyResult.hidden = false;
+    announce(`Fiken-tilkoblingen fungerer. Fant ${companies.length} foretak.`);
+  } catch (err) {
+    console.error(err);
+    announce("Fiken-testen feilet: " + (err?.message || String(err)));
+  } finally {
+    testConnectionBtn.disabled = false;
+  }
+});
+
+(async () => {
+  try {
+    await requireSession();
+    me = await getCurrentAppUser();
+
+    if (me?.app_role !== "system_admin") {
+      location.replace("admin-dashboard.html");
+      return;
+    }
+
+    await renderPortalNavigation({current:"fiken",me});
+  } catch (err) {
+    console.error(err);
+    announce("Kunne ikke åpne Fiken-administrasjonen.");
+  }
+})();
+</script>
+</body>
+</html>

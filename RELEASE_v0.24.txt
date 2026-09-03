@@ -1,0 +1,12 @@
+v0.24 – Fiken tilkoblingstest
+
+Basert på komplett v0.23.2.
+Nytt:
+- fiken.html
+- Fiken i administrasjonsmenyen
+- Test Fiken-tilkobling for systemadministrator
+
+Forutsetter:
+- Edge Function fiken-test-connection er deployet.
+- FIKEN_API_TOKEN ligger i Supabase Secrets.
+- Verify JWT er PÅ for fiken-test-connection.

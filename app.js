@@ -172,6 +172,7 @@ async function renderPortalNavigation({
     ["expense-admin.html", "Utlegg", "expense-admin"],
     ["sms.html", "SMS", "sms"],
     ["email.html", "E-post", "email"],
+    ["fiken.html", "Fiken", "fiken"],
     ["communication-history.html", "Kommunikasjonshistorikk", "communication-history"]
   ];
 
