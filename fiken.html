@@ -5,7 +5,45 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Fiken – Oslo Førerhundklubb</title>
 <link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+syncExistingBtn.addEventListener("click", async () => {
+  syncExistingBtn.disabled = true;
+  syncResult.textContent = "Synkroniserer …";
+
+  try {
+    const {data,error} = await sb.functions.invoke("fiken-sync-existing", {
+      body:{}
+    });
+
+    if (error) {
+      syncResult.textContent = "Synkronisering feilet: " + error.message;
+      announce(syncResult.textContent);
+      return;
+    }
+
+    if (!data?.success) {
+      syncResult.textContent =
+        "Synkronisering feilet: " + (data?.error || "Ukjent feil.");
+      announce(syncResult.textContent);
+      return;
+    }
+
+    syncResult.textContent =
+      `Synkronisering ferdig. Kontakter: ${data.contacts.total}, koblet til personer: ${data.contacts.linked}. ` +
+      `Fakturaer: ${data.invoices.total}, koblet til personer: ${data.invoices.linked}. ` +
+      `Betalt: ${data.invoices.paid}, utestående: ${data.invoices.outstanding}, forfalt: ${data.invoices.overdue}.`;
+
+    announce(syncResult.textContent);
+  } catch (err) {
+    syncResult.textContent =
+      "Synkronisering feilet: " + (err?.message || String(err));
+    announce(syncResult.textContent);
+  } finally {
+    syncExistingBtn.disabled = false;
+  }
+});
+
+</script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </head>
@@ -27,6 +65,21 @@ Fiken-tilkoblingen er ikke testet ennå.
 <dl id="companyDetails"></dl>
 </div>
 </section>
+
+<section aria-labelledby="syncHeading">
+<h2 id="syncHeading">Eksisterende kontakter og fakturaer</h2>
+<p>
+Synkroniseringen leser kontakter og fakturaer fra Oslo Førerhundklubb i Fiken.
+Den endrer ikke fakturaene i Fiken.
+</p>
+<p>
+<button type="button" id="syncExistingBtn">Synkroniser eksisterende Fiken-data</button>
+</p>
+<p id="syncResult" role="status" aria-live="polite">
+Ingen synkronisering er kjørt ennå.
+</p>
+</section>
+
 </main>
 
 <script>
