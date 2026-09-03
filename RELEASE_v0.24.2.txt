@@ -1,0 +1,6 @@
+v0.24.2 – Fiken frontend-fiks
+
+- Fiken lagt inn i den statiske hovedmenyen på admin-dashboard.html.
+- Rettet fiken.html: synkroniseringskoden lå feilaktig inne i en ekstern script-tag.
+- Knappen "Synkroniser eksisterende Fiken-data" kaller nå fiken-sync-existing.
+- Ingen SQL- eller Edge Function-endring kreves dersom v0.24.1 allerede er installert.
