@@ -13,7 +13,7 @@
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
 <main>
 <h1>Fiken</h1>
-<p><small>Versjon v0.24.5</small></p>
+<p><small>Versjon v0.25</small></p>
 <p id="status" class="status" role="status" aria-live="polite">Fiken-administrasjonen er klar.</p>
 
 <section aria-labelledby="syncHeading">
@@ -43,6 +43,92 @@ Ubetalte fakturaer telles som ubetalte også etter forfall. «Forfalt» er derfo
 <tbody id="invoiceRows"></tbody>
 </table>
 </div>
+</section>
+
+
+<section aria-labelledby="membershipBillingHeading">
+<h2 id="membershipBillingHeading">Fakturer medlemskontingent</h2>
+
+<p>
+Velg aktive personer som skal faktureres. Personer uten koblet Fiken-kontakt kan ikke faktureres før de er koblet.
+Systemet hopper automatisk over personer som allerede har fått kontingentfaktura for valgt år.
+</p>
+
+<p>
+<label for="membershipSearch">Søk i aktive personer</label><br>
+<input id="membershipSearch" type="search">
+</p>
+
+<p>
+<button type="button" id="selectAllMembershipBtn">Velg alle fakturerbare aktive</button>
+<button type="button" id="clearMembershipBtn">Fjern alle valg</button>
+</p>
+
+<p>
+<label for="membershipPeople">Personer</label><br>
+<select id="membershipPeople" multiple size="14"></select>
+</p>
+
+<p id="membershipSelectionStatus" role="status" aria-live="polite">Ingen personer valgt.</p>
+
+<form id="membershipBillingForm">
+<p>
+<label for="membershipYear">Kontingentår</label><br>
+<input id="membershipYear" type="number" min="2000" max="2100" required>
+</p>
+
+<p>
+<label for="membershipAmount">Kontingent per person, kroner</label><br>
+<input id="membershipAmount" type="number" min="1" step="0.01" required>
+</p>
+
+<p>
+<label for="membershipDescription">Fakturalinje</label><br>
+<input id="membershipDescription" type="text" value="Medlemskontingent Oslo Førerhundklubb" required>
+</p>
+
+<p>
+<label for="membershipDueDays">Betalingsfrist i dager</label><br>
+<input id="membershipDueDays" type="number" min="1" max="90" value="14" required>
+</p>
+
+<p>
+<label for="membershipBank">Bankkonto</label><br>
+<select id="membershipBank" required></select>
+</p>
+
+<p>
+<label for="membershipIncome">Inntektskonto</label><br>
+<select id="membershipIncome" required></select>
+</p>
+
+<p>
+<label for="membershipVat">MVA-type</label><br>
+<select id="membershipVat" required>
+<option value="NONE" selected>Ingen MVA (NONE)</option>
+<option value="EXEMPT">Unntatt MVA (EXEMPT)</option>
+<option value="HIGH">Høy sats (HIGH)</option>
+<option value="MEDIUM">Middels sats (MEDIUM)</option>
+<option value="LOW">Lav sats (LOW)</option>
+<option value="OUTSIDE">Utenfor MVA-området (OUTSIDE)</option>
+</select>
+</p>
+
+<p>
+<label for="membershipSendMode">Utsendelse</label><br>
+<select id="membershipSendMode" required>
+<option value="auto" selected>Fiken auto – eFaktura når mulig</option>
+<option value="email">Bare e-post</option>
+<option value="create_only">Opprett uten å sende</option>
+</select>
+</p>
+
+<p>
+<button type="submit" id="membershipBillBtn">Fakturer valgte medlemmer</button>
+</p>
+</form>
+
+<p id="membershipBillingResult" role="status" aria-live="polite"></p>
 </section>
 
 <section aria-labelledby="testInvoiceHeading">
@@ -83,6 +169,8 @@ Dette oppretter en ekte faktura i Fiken. Standard er eFaktura først. Mobilnumme
 <script>
 let me=null;
 let latestInvoices=[];
+let billingSetup=null;
+let membershipPeopleData=[];
 
 const syncExistingBtn=document.getElementById("syncExistingBtn");
 const syncResult=document.getElementById("syncResult");
@@ -100,6 +188,24 @@ const vatTypeSelect=document.getElementById("vatTypeSelect");
 const sendModeSelect=document.getElementById("sendModeSelect");
 const createInvoiceBtn=document.getElementById("createInvoiceBtn");
 const createResult=document.getElementById("createResult");
+
+const membershipSearch=document.getElementById("membershipSearch");
+const selectAllMembershipBtn=document.getElementById("selectAllMembershipBtn");
+const clearMembershipBtn=document.getElementById("clearMembershipBtn");
+const membershipPeople=document.getElementById("membershipPeople");
+const membershipSelectionStatus=document.getElementById("membershipSelectionStatus");
+const membershipBillingForm=document.getElementById("membershipBillingForm");
+const membershipYear=document.getElementById("membershipYear");
+const membershipAmount=document.getElementById("membershipAmount");
+const membershipDescription=document.getElementById("membershipDescription");
+const membershipDueDays=document.getElementById("membershipDueDays");
+const membershipBank=document.getElementById("membershipBank");
+const membershipIncome=document.getElementById("membershipIncome");
+const membershipVat=document.getElementById("membershipVat");
+const membershipSendMode=document.getElementById("membershipSendMode");
+const membershipBillBtn=document.getElementById("membershipBillBtn");
+const membershipBillingResult=document.getElementById("membershipBillingResult");
+
 
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
 function money(cents){
@@ -329,6 +435,136 @@ testInvoiceForm.addEventListener("submit",async ev=>{
   }
 });
 
+
+function renderMembershipPeople(){
+  const q=membershipSearch.value.trim().toLowerCase();
+  const selected=new Set([...membershipPeople.selectedOptions].map(o=>o.value));
+
+  const list=membershipPeopleData.filter(p=>
+    !q ||
+    String(p.full_name||"").toLowerCase().includes(q) ||
+    String(p.email||"").toLowerCase().includes(q)
+  );
+
+  membershipPeople.innerHTML=list.map(p=>
+    `<option value="${p.id}" ${selected.has(p.id)?"selected":""} ${p.fiken_linked?"":"disabled"}>` +
+    `${esc(p.full_name)} – ${esc(p.email||"ingen e-post")} – ${p.fiken_linked?"Fiken koblet":"mangler Fiken-kobling"}` +
+    `</option>`
+  ).join("");
+
+  updateMembershipSelection();
+}
+
+function updateMembershipSelection(){
+  const selected=[...membershipPeople.selectedOptions];
+  membershipSelectionStatus.textContent=
+    selected.length
+      ? `Valgt ${selected.length} personer.`
+      : "Ingen personer valgt.";
+}
+
+membershipSearch.addEventListener("input",renderMembershipPeople);
+membershipPeople.addEventListener("change",updateMembershipSelection);
+
+selectAllMembershipBtn.addEventListener("click",()=>{
+  [...membershipPeople.options].forEach(o=>{
+    if(!o.disabled) o.selected=true;
+  });
+  updateMembershipSelection();
+});
+
+clearMembershipBtn.addEventListener("click",()=>{
+  [...membershipPeople.options].forEach(o=>o.selected=false);
+  updateMembershipSelection();
+});
+
+async function loadBillingSetup(){
+  const {data,error}=await sb.functions.invoke("fiken-billing-runs",{body:{action:"setup"}});
+  if(error) throw new Error(error.message);
+  if(!data?.success) throw new Error(data?.error||"Ukjent feil.");
+
+  billingSetup=data;
+  membershipPeopleData=data.people||[];
+
+  membershipYear.value=String(new Date().getFullYear());
+
+  membershipBank.innerHTML='<option value="">Velg bankkonto</option>'+
+    (data.bankAccounts||[]).map(b=>
+      `<option value="${esc(b.accountCode)}">${esc(b.name)} – ${esc(b.bankAccountNumber)} – ${esc(b.accountCode)}</option>`
+    ).join("");
+
+  membershipIncome.innerHTML='<option value="">Velg inntektskonto</option>'+
+    (data.incomeAccounts||[]).map(a=>
+      `<option value="${esc(a.code)}">${esc(a.code)} – ${esc(a.name)}</option>`
+    ).join("");
+
+  renderMembershipPeople();
+}
+
+membershipBillingForm.addEventListener("submit",async ev=>{
+  ev.preventDefault();
+
+  const ids=[...membershipPeople.selectedOptions].map(o=>o.value);
+  const amount=Number(membershipAmount.value);
+
+  if(!ids.length){
+    announce("Velg minst én person som skal faktureres.");
+    membershipPeople.focus();
+    return;
+  }
+
+  if(!Number.isFinite(amount)||amount<=0){
+    announce("Skriv inn gyldig kontingentbeløp.");
+    membershipAmount.focus();
+    return;
+  }
+
+  const year=Number(membershipYear.value);
+
+  if(!confirm(
+    `Dette oppretter ekte Fiken-fakturaer for ${ids.length} valgte personer for kontingentåret ${year}. ` +
+    `Beløp per person: ${amount.toFixed(2)} kr. Fortsette?`
+  )) return;
+
+  membershipBillBtn.disabled=true;
+  membershipBillingResult.textContent="Fakturerer valgte medlemmer …";
+  announce(membershipBillingResult.textContent);
+
+  try{
+    const {data,error}=await sb.functions.invoke("fiken-billing-runs",{body:{
+      action:"membership_run",
+      personIds:ids,
+      membershipYear:year,
+      amountCents:Math.round(amount*100),
+      description:membershipDescription.value.trim(),
+      dueDays:Number(membershipDueDays.value||14),
+      bankAccountCode:membershipBank.value,
+      incomeAccount:membershipIncome.value,
+      vatType:membershipVat.value,
+      sendMode:membershipSendMode.value
+    }});
+
+    if(error) throw new Error(error.message);
+    if(!data?.success) throw new Error(data?.error||"Ukjent feil.");
+
+    const s=data.summary;
+    membershipBillingResult.textContent=
+      `Fakturering ferdig. Opprettet: ${s.created}. ` +
+      `Hoppet over som allerede fakturert: ${s.skippedDuplicate}. ` +
+      `Mangler Fiken-kobling: ${s.skippedNoFiken}. Feilet: ${s.failed}. ` +
+      `Sendt via Fiken auto: ${s.sentAuto}, e-post: ${s.sentEmail}, ikke sendt: ${s.notSent}.`;
+
+    announce(membershipBillingResult.textContent);
+    await syncInvoices();
+  }catch(err){
+    membershipBillingResult.textContent=
+      "Kontingentfakturering feilet: "+(err?.message||String(err));
+    announce(membershipBillingResult.textContent);
+  }finally{
+    membershipBillBtn.disabled=false;
+  }
+});
+
 (async()=>{
   try{
     await requireSession();
@@ -336,6 +572,7 @@ testInvoiceForm.addEventListener("submit",async ev=>{
     if(me?.app_role!=="system_admin"){location.replace("admin-dashboard.html");return;}
     await renderPortalNavigation({current:"fiken",me});
     await loadInvoiceSetup();
+    await loadBillingSetup();
   }catch(err){
     console.error(err);
     announce("Kunne ikke åpne Fiken-administrasjonen.");

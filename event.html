@@ -132,6 +132,94 @@
 </table>
 </section>
 
+
+<section aria-labelledby="eventBillingHeading">
+<h2 id="eventBillingHeading">Fakturering av påmeldte</h2>
+
+<p>
+Fakturer valgte påmeldte deltakere direkte fra arrangementet.
+Systemet hopper over personer som allerede er fakturert for dette arrangementet.
+</p>
+
+<p>
+<button type="button" id="eventBillingLoadBtn">Last fakturaoppsett</button>
+</p>
+
+<div id="eventBillingPanel" hidden>
+<p>
+<label for="eventBillingPeople">Påmeldte som skal faktureres</label><br>
+<select id="eventBillingPeople" multiple size="12"></select>
+</p>
+<p>
+<button type="button" id="eventBillingSelectAll">Velg alle påmeldte</button>
+<button type="button" id="eventBillingClear">Fjern alle valg</button>
+</p>
+<p id="eventBillingSelectionStatus" role="status" aria-live="polite">Ingen valgt.</p>
+
+<form id="eventBillingForm">
+<p>
+<label for="eventBillingAmount">Pris, kroner</label><br>
+<input id="eventBillingAmount" type="number" min="1" step="0.01" required>
+</p>
+
+<p>
+<label for="eventBillingDescription">Fakturalinje</label><br>
+<input id="eventBillingDescription" type="text" required>
+</p>
+
+<p>
+<label for="eventGuestPricing">Hvordan ekstra deltakere skal faktureres</label><br>
+<select id="eventGuestPricing">
+<option value="registration" selected>Fast pris per påmelding</option>
+<option value="per_attendee">Pris per person, inkludert ekstra deltakere</option>
+</select>
+</p>
+
+<p>
+<label for="eventBillingDueDays">Betalingsfrist i dager</label><br>
+<input id="eventBillingDueDays" type="number" min="1" max="90" value="14" required>
+</p>
+
+<p>
+<label for="eventBillingBank">Bankkonto</label><br>
+<select id="eventBillingBank" required></select>
+</p>
+
+<p>
+<label for="eventBillingIncome">Inntektskonto</label><br>
+<select id="eventBillingIncome" required></select>
+</p>
+
+<p>
+<label for="eventBillingVat">MVA-type</label><br>
+<select id="eventBillingVat" required>
+<option value="NONE" selected>Ingen MVA (NONE)</option>
+<option value="EXEMPT">Unntatt MVA (EXEMPT)</option>
+<option value="HIGH">Høy sats (HIGH)</option>
+<option value="MEDIUM">Middels sats (MEDIUM)</option>
+<option value="LOW">Lav sats (LOW)</option>
+<option value="OUTSIDE">Utenfor MVA-området (OUTSIDE)</option>
+</select>
+</p>
+
+<p>
+<label for="eventBillingSendMode">Utsendelse</label><br>
+<select id="eventBillingSendMode">
+<option value="auto" selected>Fiken auto – eFaktura når mulig</option>
+<option value="email">Bare e-post</option>
+<option value="create_only">Opprett uten å sende</option>
+</select>
+</p>
+
+<p>
+<button type="submit" id="eventBillingSubmit">Fakturer valgte påmeldte</button>
+</p>
+</form>
+
+<p id="eventBillingResult" role="status" aria-live="polite"></p>
+</div>
+</section>
+
 <section aria-labelledby="participantsHeading">
 <h2 id="participantsHeading">Deltakere og påmeldinger</h2>
 <p id="participantSummary"></p>
@@ -436,6 +524,25 @@ let participants = [];
 let associatedPeople = [];
 let automationRules = [];
 let groups = [];
+
+const eventBillingLoadBtn = document.getElementById("eventBillingLoadBtn");
+const eventBillingPanel = document.getElementById("eventBillingPanel");
+const eventBillingPeople = document.getElementById("eventBillingPeople");
+const eventBillingSelectAll = document.getElementById("eventBillingSelectAll");
+const eventBillingClear = document.getElementById("eventBillingClear");
+const eventBillingSelectionStatus = document.getElementById("eventBillingSelectionStatus");
+const eventBillingForm = document.getElementById("eventBillingForm");
+const eventBillingAmount = document.getElementById("eventBillingAmount");
+const eventBillingDescription = document.getElementById("eventBillingDescription");
+const eventGuestPricing = document.getElementById("eventGuestPricing");
+const eventBillingDueDays = document.getElementById("eventBillingDueDays");
+const eventBillingBank = document.getElementById("eventBillingBank");
+const eventBillingIncome = document.getElementById("eventBillingIncome");
+const eventBillingVat = document.getElementById("eventBillingVat");
+const eventBillingSendMode = document.getElementById("eventBillingSendMode");
+const eventBillingSubmit = document.getElementById("eventBillingSubmit");
+const eventBillingResult = document.getElementById("eventBillingResult");
+
 
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({
   "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
@@ -1592,6 +1699,135 @@ async function loadRegistrationFields(){
   registrationFieldList.querySelectorAll("[data-del-field]").forEach(b=>b.onclick=async()=>{const {error}=await sb.from("event_registration_fields").delete().eq("id",b.dataset.delField);if(error)return announce(error.message);await loadRegistrationFields();announce("Spørsmålet er slettet.");});
 }
 registrationFieldForm.onsubmit=async e=>{e.preventDefault();const options=fieldType.value==="select"?fieldOptions.value.split("\n").map(x=>x.trim()).filter(Boolean):[];const {error}=await sb.from("event_registration_fields").insert({event_id:eventId,label:fieldLabel.value.trim(),field_type:fieldType.value,required:fieldRequired.checked,options_json:options,sort_order:registrationFields.length+1,active:true});if(error)return announce("Kunne ikke legge til spørsmål: "+error.message);registrationFieldForm.reset();await loadRegistrationFields();announce("Spørsmålet er lagt til.");};
+
+function updateEventBillingSelection(){
+  const n=eventBillingPeople.selectedOptions.length;
+  eventBillingSelectionStatus.textContent=
+    n ? `Valgt ${n} påmeldte.` : "Ingen valgt.";
+}
+
+eventBillingSelectAll.addEventListener("click",()=>{
+  [...eventBillingPeople.options].forEach(o=>{
+    if(!o.disabled) o.selected=true;
+  });
+  updateEventBillingSelection();
+});
+
+eventBillingClear.addEventListener("click",()=>{
+  [...eventBillingPeople.options].forEach(o=>o.selected=false);
+  updateEventBillingSelection();
+});
+
+eventBillingPeople.addEventListener("change",updateEventBillingSelection);
+
+eventBillingLoadBtn.addEventListener("click",async()=>{
+  eventBillingLoadBtn.disabled=true;
+  eventBillingResult.textContent="Laster fakturaoppsett …";
+
+  try{
+    const {data,error}=await sb.functions.invoke("fiken-billing-runs",{body:{action:"setup"}});
+    if(error) throw new Error(error.message);
+    if(!data?.success) throw new Error(data?.error||"Ukjent feil.");
+
+    const peopleById=new Map((data.people||[]).map(p=>[p.id,p]));
+    const attending=participants.filter(p=>p.status==="attending");
+
+    eventBillingPeople.innerHTML=attending.map(p=>{
+      const person=peopleById.get(p.person_id);
+      const linked=person?.fiken_linked===true;
+      const label=
+        `${p.persons?.full_name||person?.full_name||"Ukjent"} – ` +
+        `${linked?"Fiken koblet":"mangler Fiken-kobling"} – ` +
+        `${Number(p.guest_count||0)} ekstra`;
+      return `<option value="${p.person_id}" ${linked?"selected":"disabled"}>${esc(label)}</option>`;
+    }).join("");
+
+    eventBillingBank.innerHTML='<option value="">Velg bankkonto</option>'+
+      (data.bankAccounts||[]).map(b=>
+        `<option value="${esc(b.accountCode)}">${esc(b.name)} – ${esc(b.bankAccountNumber)} – ${esc(b.accountCode)}</option>`
+      ).join("");
+
+    eventBillingIncome.innerHTML='<option value="">Velg inntektskonto</option>'+
+      (data.incomeAccounts||[]).map(a=>
+        `<option value="${esc(a.code)}">${esc(a.code)} – ${esc(a.name)}</option>`
+      ).join("");
+
+    eventBillingDescription.value=currentEvent?.title
+      ? `Deltakeravgift – ${currentEvent.title}`
+      : "Deltakeravgift";
+
+    eventBillingPanel.hidden=false;
+    updateEventBillingSelection();
+    eventBillingResult.textContent="Fakturaoppsettet er klart.";
+  }catch(err){
+    eventBillingResult.textContent=
+      "Kunne ikke laste fakturaoppsett: "+(err?.message||String(err));
+  }finally{
+    eventBillingLoadBtn.disabled=false;
+  }
+});
+
+eventBillingForm.addEventListener("submit",async ev=>{
+  ev.preventDefault();
+
+  const ids=[...eventBillingPeople.selectedOptions].map(o=>o.value);
+  const amount=Number(eventBillingAmount.value);
+
+  if(!ids.length){
+    announce("Velg minst én påmeldt som skal faktureres.");
+    return;
+  }
+
+  if(!Number.isFinite(amount)||amount<=0){
+    announce("Skriv inn gyldig deltakeravgift.");
+    eventBillingAmount.focus();
+    return;
+  }
+
+  if(!confirm(
+    `Dette oppretter ekte Fiken-fakturaer for ${ids.length} påmeldte på ${amount.toFixed(2)} kr ` +
+    `${eventGuestPricing.value==="per_attendee" ? "per person inkludert ekstra deltakere" : "per påmelding"}. Fortsette?`
+  )) return;
+
+  eventBillingSubmit.disabled=true;
+  eventBillingResult.textContent="Fakturerer påmeldte …";
+  announce(eventBillingResult.textContent);
+
+  try{
+    const {data,error}=await sb.functions.invoke("fiken-billing-runs",{body:{
+      action:"event_run",
+      eventId,
+      personIds:ids,
+      amountCents:Math.round(amount*100),
+      description:eventBillingDescription.value.trim(),
+      guestPricing:eventGuestPricing.value,
+      dueDays:Number(eventBillingDueDays.value||14),
+      bankAccountCode:eventBillingBank.value,
+      incomeAccount:eventBillingIncome.value,
+      vatType:eventBillingVat.value,
+      sendMode:eventBillingSendMode.value
+    }});
+
+    if(error) throw new Error(error.message);
+    if(!data?.success) throw new Error(data?.error||"Ukjent feil.");
+
+    const s=data.summary;
+    eventBillingResult.textContent=
+      `Fakturering ferdig. Opprettet: ${s.created}. ` +
+      `Allerede fakturert: ${s.skippedDuplicate}. ` +
+      `Mangler Fiken-kobling: ${s.skippedNoFiken}. Feilet: ${s.failed}. ` +
+      `Sendt via Fiken auto: ${s.sentAuto}, e-post: ${s.sentEmail}, ikke sendt: ${s.notSent}.`;
+
+    announce(eventBillingResult.textContent);
+  }catch(err){
+    eventBillingResult.textContent=
+      "Arrangementsfakturering feilet: "+(err?.message||String(err));
+    announce(eventBillingResult.textContent);
+  }finally{
+    eventBillingSubmit.disabled=false;
+  }
+});
+
 (async()=>{try{await requireSession();const u=await getCurrentAppUser();if(["admin","system_admin"].includes(u?.app_role))await loadRegistrationFields();else registrationFieldsAdmin.hidden=true;}catch{registrationFieldsAdmin.hidden=true;}})();
 </script></body>
 </html>

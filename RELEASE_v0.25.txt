@@ -1,0 +1,11 @@
+v0.25 – kontingent og arrangementsfakturering
+
+- Fiken auto er produksjonsstandard for utsendelse.
+- Kontingentfakturering fra Fiken-siden.
+- Velg aktive personer, kontingentår, beløp og regnskapsoppsett.
+- Dobbeltfakturering sperres per person + kontingentår.
+- Arrangementsfakturering direkte fra arrangementet.
+- Fakturer valgte påmeldte, enten fast pris per påmelding eller per person inkl. gjester.
+- Dobbeltfakturering sperres per person + arrangement.
+- Batchkjøringer logges i fiken_billing_runs og fiken_billing_run_items.
+- Personer uten Fiken-kobling hoppes over og rapporteres tydelig.
