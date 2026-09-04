@@ -1,0 +1,13 @@
+v0.26 – Hjelpetrenerforespørsler
+
+- Ny side «Be om hjelp» for innloggede brukere.
+- Felter for hva man ønsker hjelp med, sted, så snart som mulig eller fast dato, valgfritt klokkeslett og kommentar.
+- Bruker velger eksplisitt om mobilnummer kan deles med hjelpetreneren som faktisk får oppdraget.
+- Nye forespørsler varsler aktive hjelpetrenere på SMS og e-post.
+- Ny side «Hjelpetreneroppdrag» med ledige oppdrag og egne tildelte oppdrag.
+- Første aktive hjelpetrener som tar oppdraget får det atomisk tildelt.
+- Telefonnummer vises ikke til andre hjelpetrenere før tildeling, og bare når bruker har samtykket.
+- Bruker varsles når en hjelpetrener tar oppdraget.
+- Statusflyt: Ledig → Tildelt → Avtalt → Fullført, samt Avlyst.
+- Bruker kan se og avlyse egne forespørsler.
+- Administrator kan se hjelpetrenerforespørsler fra adminmenyen.

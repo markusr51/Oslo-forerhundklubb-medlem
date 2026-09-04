@@ -148,7 +148,8 @@ async function renderPortalNavigation({
   const memberItems = [
     ["my-page.html", "Min side", "my-page"],
     ["library.html", "Dokumentbibliotek", "library"],
-    ["my-expenses.html", "Mine utlegg", "my-expenses"]
+    ["my-expenses.html", "Mine utlegg", "my-expenses"],
+    ["helper-request.html", "Be om hjelp", "helper-request"]
   ];
 
   if (caps.isHelper) {
@@ -156,6 +157,11 @@ async function renderPortalNavigation({
       "helper-settlement.html",
       "Hjelpetreneroppgjør",
       "helper-settlement"
+    ]);
+    memberItems.push([
+      "helper-requests.html",
+      "Hjelpetreneroppdrag",
+      "helper-requests"
     ]);
   }
 
@@ -169,6 +175,7 @@ async function renderPortalNavigation({
     ["library.html", "Dokumentbibliotek", "library"],
     ["helper-settlement.html", "Hjelpetreneroppgjør", "helper-settlement"],
     ["helper-overview.html", "Hjelpetreneroversikt", "helper-overview"],
+    ["helper-requests.html", "Hjelpetrenerforespørsler", "helper-requests"],
     ["expense-admin.html", "Utlegg", "expense-admin"],
     ["sms.html", "SMS", "sms"],
     ["email.html", "E-post", "email"],

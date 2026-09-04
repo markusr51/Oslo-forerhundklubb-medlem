@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hjelpetreneroppdrag – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<nav id="portalNav" aria-label="Hovedmeny"></nav>
+
+<main>
+<h1>Hjelpetreneroppdrag</h1>
+
+<p id="status" role="status" aria-live="polite">
+Laster oppdrag …
+</p>
+
+<section aria-labelledby="openHeading">
+<h2 id="openHeading">Ledige oppdrag</h2>
+<div id="openRequests"></div>
+</section>
+
+<section aria-labelledby="myHeading">
+<h2 id="myHeading">Mine oppdrag</h2>
+<div id="myRequests"></div>
+</section>
+</main>
+
+<script>
+let me = null;
+let canClaim = false;
+
+const openRequests =
+  document.getElementById("openRequests");
+
+const myRequests =
+  document.getElementById("myRequests");
+
+function esc(value) {
+  return String(value ?? "")
+    .replace(
+      /[&<>"']/g,
+      char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char])
+    );
+}
+
+function statusText(status) {
+  return ({
+    open: "Ledig",
+    assigned: "Tildelt",
+    agreed: "Avtalt",
+    completed: "Fullført",
+    cancelled: "Avlyst"
+  })[status] || status;
+}
+
+function timingText(row) {
+  if (
+    row.timing_type === "asap"
+  ) {
+    return "Så snart som mulig";
+  }
+
+  return (
+    String(
+      row.requested_date || ""
+    ) +
+    (
+      row.requested_time
+        ? " kl. " +
+          String(
+            row.requested_time
+          ).slice(0, 5)
+        : ""
+    )
+  );
+}
+
+async function invoke(body) {
+  const {
+    data,
+    error
+  } =
+    await sb.functions.invoke(
+      "helper-requests",
+      {
+        body
+      }
+    );
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
+
+  if (!data?.success) {
+    throw new Error(
+      data?.error ||
+      "Ukjent feil."
+    );
+  }
+
+  return data;
+}
+
+function renderOpen(rows) {
+  openRequests.innerHTML =
+    (rows || [])
+      .map(
+        row => `
+          <article>
+            <h3>${esc(row.help_type)}</h3>
+
+            <p>
+              Bruker:
+              ${esc(row.requester_name || "Ukjent")}
+            </p>
+
+            <p>
+              Sted:
+              ${esc(row.location_text)}
+            </p>
+
+            <p>
+              Tid:
+              ${esc(timingText(row))}
+            </p>
+
+            ${
+              row.comment
+                ? `<p>Kommentar: ${esc(row.comment)}</p>`
+                : ""
+            }
+
+            ${
+              canClaim
+                ? `
+                  <p>
+                    <button
+                      type="button"
+                      data-claim="${row.id}">
+                      Ta oppdraget
+                    </button>
+                  </p>
+                `
+                : ""
+            }
+          </article>
+        `
+      )
+      .join("") ||
+    "<p>Ingen ledige oppdrag.</p>";
+}
+
+function renderMine(rows) {
+  myRequests.innerHTML =
+    (rows || [])
+      .map(
+        row => `
+          <article>
+            <h3>${esc(row.help_type)}</h3>
+
+            <p>
+              Bruker:
+              ${esc(row.requester_name || "Ukjent")}
+            </p>
+
+            <p>
+              Sted:
+              ${esc(row.location_text)}
+            </p>
+
+            <p>
+              Tid:
+              ${esc(timingText(row))}
+            </p>
+
+            <p>
+              Status:
+              ${esc(statusText(row.status))}
+            </p>
+
+            ${
+              row.comment
+                ? `<p>Kommentar: ${esc(row.comment)}</p>`
+                : ""
+            }
+
+            ${
+              row.share_phone
+                ? `
+                  <p>
+                    Mobilnummer:
+                    ${
+                      row.requester_phone
+                        ? `<a href="tel:${esc(row.requester_phone)}">${esc(row.requester_phone)}</a>`
+                        : "Ikke tilgjengelig"
+                    }
+                  </p>
+                `
+                : `
+                  <p>
+                    Bruker har ikke samtykket til deling av mobilnummer.
+                  </p>
+                `
+            }
+
+            ${
+              row.status === "assigned"
+                ? `
+                  <p>
+                    <button
+                      type="button"
+                      data-status="agreed"
+                      data-id="${row.id}">
+                      Marker som avtalt
+                    </button>
+                  </p>
+                `
+                : ""
+            }
+
+            ${
+              ["assigned","agreed"]
+                .includes(row.status)
+                ? `
+                  <p>
+                    <button
+                      type="button"
+                      data-status="completed"
+                      data-id="${row.id}">
+                      Marker som fullført
+                    </button>
+                  </p>
+                `
+                : ""
+            }
+
+            ${
+              ["assigned","agreed"]
+                .includes(row.status)
+                ? `
+                  <p>
+                    <button
+                      type="button"
+                      data-status="cancelled"
+                      data-id="${row.id}">
+                      Avlys oppdraget
+                    </button>
+                  </p>
+                `
+                : ""
+            }
+          </article>
+        `
+      )
+      .join("") ||
+    "<p>Du har ingen tildelte oppdrag.</p>";
+}
+
+async function load() {
+  const data =
+    await invoke({
+      action: "list_helper"
+    });
+
+  canClaim =
+    data.canClaim === true;
+
+  renderOpen(
+    data.open || []
+  );
+
+  renderMine(
+    data.mine || []
+  );
+
+  announce(
+    "Oppdragslisten er oppdatert."
+  );
+}
+
+openRequests.addEventListener(
+  "click",
+  async event => {
+    const button =
+      event.target.closest(
+        "button[data-claim]"
+      );
+
+    if (!button) {
+      return;
+    }
+
+    if (
+      !confirm(
+        "Vil du ta dette oppdraget? Første hjelpetrener som bekrefter får oppdraget."
+      )
+    ) {
+      return;
+    }
+
+    button.disabled = true;
+
+    try {
+      await invoke({
+        action: "claim",
+        requestId:
+          button.dataset.claim
+      });
+
+      announce(
+        "Oppdraget er tildelt deg."
+      );
+
+      await load();
+
+    } catch (error) {
+      announce(
+        "Kunne ikke ta oppdraget: " +
+        (
+          error?.message ||
+          String(error)
+        )
+      );
+
+      await load();
+
+    } finally {
+      button.disabled = false;
+    }
+  }
+);
+
+myRequests.addEventListener(
+  "click",
+  async event => {
+    const button =
+      event.target.closest(
+        "button[data-status]"
+      );
+
+    if (!button) {
+      return;
+    }
+
+    const newStatus =
+      button.dataset.status;
+
+    if (
+      newStatus === "cancelled" &&
+      !confirm(
+        "Er du sikker på at du vil avlyse oppdraget?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await invoke({
+        action: "set_status",
+        requestId:
+          button.dataset.id,
+        status:
+          newStatus
+      });
+
+      announce(
+        "Status er oppdatert."
+      );
+
+      await load();
+
+    } catch (error) {
+      announce(
+        "Kunne ikke oppdatere status: " +
+        (
+          error?.message ||
+          String(error)
+        )
+      );
+    }
+  }
+);
+
+(async () => {
+  try {
+    await requireSession();
+
+    me =
+      await getCurrentAppUser();
+
+    await renderPortalNavigation({
+      current:
+        "helper-requests",
+      me
+    });
+
+    await load();
+
+  } catch (error) {
+    console.error(error);
+
+    announce(
+      "Kunne ikke åpne oppdragslisten: " +
+      (
+        error?.message ||
+        String(error)
+      )
+    );
+  }
+})();
+</script>
+</body>
+</html>

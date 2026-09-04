@@ -13,7 +13,7 @@
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
 <main>
 <h1>Fiken</h1>
-<p><small>Versjon v0.25.1</small></p>
+<p><small>Versjon v0.25.2</small></p>
 <p id="status" class="status" role="status" aria-live="polite">Fiken-administrasjonen er klar.</p>
 
 <section aria-labelledby="syncHeading">
@@ -47,11 +47,11 @@ Ubetalte fakturaer telles som ubetalte også etter forfall. «Forfalt» er en ek
 
 
 <section aria-labelledby="membershipBillingHeading">
-<h2 id="membershipBillingHeading">Fakturer medlemskontingent</h2>
+<h2 id="membershipBillingHeading">Massefakturering</h2>
 
 <p>
-Velg aktive personer som skal faktureres. Personer uten koblet Fiken-kontakt kan ikke faktureres før de er koblet.
-Systemet hopper automatisk over personer som allerede har fått kontingentfaktura for valgt år.
+Velg én eller flere aktive personer som skal faktureres. Du kan filtrere etter rolle, søke etter person og deretter velge ønskede mottakere.
+Personer uten koblet Fiken-kontakt kan ikke faktureres før de er koblet.
 </p>
 
 <p>
@@ -63,16 +63,22 @@ Systemet hopper automatisk over personer som allerede har fått kontingentfaktur
 
 <p>
 <label for="membershipSearch">Søk i aktive personer</label><br>
-<input id="membershipSearch" type="search">
+<input id="membershipSearch" type="search" autocomplete="off">
+</p>
+
+<div id="membershipSearchResults" role="region" aria-labelledby="membershipSearchResultsHeading">
+<h3 id="membershipSearchResultsHeading">Søkeresultater</h3>
+<p id="membershipSearchHelp">Skriv navn eller e-post. Velg «Legg til» på personen du vil fakturere.</p>
+<div id="membershipSearchResultsList"></div>
+</div>
+
+<p>
+<button type="button" id="selectAllMembershipBtn">Legg til alle viste</button>
+<button type="button" id="clearMembershipBtn">Fjern alle valgte</button>
 </p>
 
 <p>
-<button type="button" id="selectAllMembershipBtn">Velg alle fakturerbare aktive</button>
-<button type="button" id="clearMembershipBtn">Fjern alle valg</button>
-</p>
-
-<p>
-<label for="membershipPeople">Personer</label><br>
+<label for="membershipPeople">Valgte mottakere</label><br>
 <select id="membershipPeople" multiple size="14"></select>
 </p>
 
@@ -80,18 +86,18 @@ Systemet hopper automatisk over personer som allerede har fått kontingentfaktur
 
 <form id="membershipBillingForm">
 <p>
-<label for="membershipYear">Kontingentår</label><br>
+<label for="membershipYear">Faktureringsår</label><br>
 <input id="membershipYear" type="number" min="2000" max="2100" required>
 </p>
 
 <p>
 <label for="membershipAmount">Kontingent per person, kroner</label><br>
-<input id="membershipAmount" type="number" min="1" step="0.01" value="300.00" required>
+<input id="membershipAmount" type="number" min="1" step="0.01" placeholder="For eksempel 300,00" required>
 </p>
 
 <p>
 <label for="membershipDescription">Fakturalinje</label><br>
-<input id="membershipDescription" type="text" value="Medlemskontingent Oslo Førerhundklubb" required>
+<input id="membershipDescription" type="text" placeholder="For eksempel Medlemskontingent 2026" required>
 </p>
 
 <p>
@@ -119,7 +125,7 @@ Systemet hopper automatisk over personer som allerede har fått kontingentfaktur
 </p>
 
 <p>
-<button type="submit" id="membershipBillBtn">Fakturer valgte medlemmer</button>
+<button type="submit" id="membershipBillBtn">Fakturer valgte mottakere</button>
 </p>
 </form>
 
@@ -127,16 +133,16 @@ Systemet hopper automatisk over personer som allerede har fått kontingentfaktur
 </section>
 
 <section aria-labelledby="testInvoiceHeading">
-<h2 id="testInvoiceHeading">Lag testfaktura</h2>
+<h2 id="testInvoiceHeading">Enkeltfaktura</h2>
 <p>
-Dette oppretter en ekte faktura i Fiken. Standard er eFaktura først. Mobilnummeret normaliseres før Fiken-kallet; e-post brukes bare som fallback dersom eFaktura ikke kan sendes.
+Opprett og send én faktura til en valgt person. Standard utsendelse er Fiken auto, slik at eFaktura brukes når det er mulig.
 </p>
 <p id="setupResult" role="status" aria-live="polite">Laster fakturaoppsett …</p>
 
 <form id="testInvoiceForm" hidden>
 <p><label for="personSelect">Mottaker</label><br><select id="personSelect" required></select></p>
 <p><label for="amountInput">Beløp eks. mva, kroner</label><br><input id="amountInput" type="number" min="1" step="0.01" value="10.00" required></p>
-<p><label for="descriptionInput">Fakturalinje</label><br><input id="descriptionInput" type="text" value="Testfaktura medlemsportal" maxlength="200" required></p>
+<p><label for="descriptionInput">Fakturalinje</label><br><input id="descriptionInput" type="text" placeholder="Fakturalinje" maxlength="200" required></p>
 <p><label for="dueDaysInput">Betalingsfrist i dager</label><br><input id="dueDaysInput" type="number" min="1" max="90" value="14" required></p>
 <p><label for="bankAccountSelect">Bankkonto på faktura</label><br><select id="bankAccountSelect" required></select></p>
 <p><label for="incomeAccountSelect">Inntektskonto</label><br><select id="incomeAccountSelect" required></select></p>
@@ -175,6 +181,7 @@ const createResult=document.getElementById("createResult");
 
 const membershipRoleFilter=document.getElementById("membershipRoleFilter");
 const membershipSearch=document.getElementById("membershipSearch");
+const membershipSearchResultsList=document.getElementById("membershipSearchResultsList");
 const selectAllMembershipBtn=document.getElementById("selectAllMembershipBtn");
 const clearMembershipBtn=document.getElementById("clearMembershipBtn");
 const membershipPeople=document.getElementById("membershipPeople");
@@ -418,10 +425,10 @@ testInvoiceForm.addEventListener("submit",async ev=>{
 
 function renderMembershipPeople(){
   const q=membershipSearch.value.trim().toLowerCase();
-  const selected=new Set([...membershipPeople.selectedOptions].map(o=>o.value));
-
   const roleId=membershipRoleFilter.value;
-  const list=membershipPeopleData.filter(p=>{
+  const selectedIds=new Set([...membershipPeople.options].map(o=>o.value));
+
+  const visible=membershipPeopleData.filter(p=>{
     const roleOk=!roleId || (p.roles||[]).some(r=>String(r.id)===roleId);
     const searchOk=
       !q ||
@@ -430,17 +437,31 @@ function renderMembershipPeople(){
     return roleOk && searchOk;
   });
 
-  membershipPeople.innerHTML=list.map(p=>
-    `<option value="${p.id}" ${selected.has(p.id)?"selected":""} ${p.fiken_linked?"":"disabled"}>` +
-    `${esc(p.full_name)} – ${esc(p.email||"ingen e-post")} – ${p.fiken_linked?"Fiken koblet":"mangler Fiken-kobling"}` +
-    `</option>`
-  ).join("");
+  membershipSearchResultsList.innerHTML = visible.length
+    ? visible.map(p=>{
+        const already=selectedIds.has(p.id);
+        const disabled=!p.fiken_linked;
+        const status=disabled
+          ? "Mangler Fiken-kobling"
+          : already
+            ? "Allerede lagt til"
+            : "Klar";
+        return `
+          <p>
+            <strong>${esc(p.full_name)}</strong>
+            ${p.email ? ` – ${esc(p.email)}` : ""}
+            – ${esc(status)}
+            ${disabled || already ? "" :
+              `<button type="button" data-membership-add="${esc(p.id)}">Legg til ${esc(p.full_name)}</button>`}
+          </p>`;
+      }).join("")
+    : "<p>Ingen personer funnet.</p>";
 
   updateMembershipSelection();
 }
 
 function updateMembershipSelection(){
-  const selected=[...membershipPeople.selectedOptions];
+  const selected=[...membershipPeople.options];
   membershipSelectionStatus.textContent=
     selected.length
       ? `Valgt ${selected.length} personer.`
@@ -449,18 +470,56 @@ function updateMembershipSelection(){
 
 membershipRoleFilter.addEventListener("change",renderMembershipPeople);
 membershipSearch.addEventListener("input",renderMembershipPeople);
+membershipSearchResultsList.addEventListener("click",ev=>{
+  const btn=ev.target.closest("button[data-membership-add]");
+  if(!btn) return;
+
+  const id=btn.dataset.membershipAdd;
+  const p=membershipPeopleData.find(x=>x.id===id);
+  if(!p || !p.fiken_linked) return;
+
+  if(![...membershipPeople.options].some(o=>o.value===id)){
+    const opt=document.createElement("option");
+    opt.value=p.id;
+    opt.textContent=`${p.full_name} – ${p.email||"ingen e-post"}`;
+    opt.selected=true;
+    membershipPeople.appendChild(opt);
+  }
+
+  renderMembershipPeople();
+  membershipPeople.focus();
+});
 membershipPeople.addEventListener("change",updateMembershipSelection);
 
 selectAllMembershipBtn.addEventListener("click",()=>{
-  [...membershipPeople.options].forEach(o=>{
-    if(!o.disabled) o.selected=true;
-  });
-  updateMembershipSelection();
+  const q=membershipSearch.value.trim().toLowerCase();
+  const roleId=membershipRoleFilter.value;
+
+  membershipPeopleData
+    .filter(p=>{
+      const roleOk=!roleId || (p.roles||[]).some(r=>String(r.id)===roleId);
+      const searchOk=
+        !q ||
+        String(p.full_name||"").toLowerCase().includes(q) ||
+        String(p.email||"").toLowerCase().includes(q);
+      return roleOk && searchOk && p.fiken_linked;
+    })
+    .forEach(p=>{
+      if(![...membershipPeople.options].some(o=>o.value===p.id)){
+        const opt=document.createElement("option");
+        opt.value=p.id;
+        opt.textContent=`${p.full_name} – ${p.email||"ingen e-post"}`;
+        membershipPeople.appendChild(opt);
+      }
+    });
+
+  [...membershipPeople.options].forEach(o=>o.selected=true);
+  renderMembershipPeople();
 });
 
 clearMembershipBtn.addEventListener("click",()=>{
-  [...membershipPeople.options].forEach(o=>o.selected=false);
-  updateMembershipSelection();
+  membershipPeople.innerHTML="";
+  renderMembershipPeople();
 });
 
 async function loadBillingSetup(){
@@ -500,7 +559,7 @@ async function loadBillingSetup(){
 membershipBillingForm.addEventListener("submit",async ev=>{
   ev.preventDefault();
 
-  const ids=[...membershipPeople.selectedOptions].map(o=>o.value);
+  const ids=[...membershipPeople.options].map(o=>o.value);
   const amount=Number(membershipAmount.value);
 
   if(!ids.length){
@@ -510,7 +569,7 @@ membershipBillingForm.addEventListener("submit",async ev=>{
   }
 
   if(!Number.isFinite(amount)||amount<=0){
-    announce("Skriv inn gyldig kontingentbeløp.");
+    announce("Skriv inn gyldig beløp.");
     membershipAmount.focus();
     return;
   }
@@ -518,7 +577,7 @@ membershipBillingForm.addEventListener("submit",async ev=>{
   const year=Number(membershipYear.value);
 
   if(!confirm(
-    `Dette oppretter ekte Fiken-fakturaer for ${ids.length} valgte personer for kontingentåret ${year}. ` +
+    `Dette oppretter ekte Fiken-fakturaer for ${ids.length} valgte personer for faktureringsåret ${year}. ` +
     `Beløp per person: ${amount.toFixed(2)} kr. Fortsette?`
   )) return;
 
@@ -553,7 +612,7 @@ membershipBillingForm.addEventListener("submit",async ev=>{
     await syncInvoices();
   }catch(err){
     membershipBillingResult.textContent=
-      "Kontingentfakturering feilet: "+(err?.message||String(err));
+      "Massefakturering feilet: "+(err?.message||String(err));
     announce(membershipBillingResult.textContent);
   }finally{
     membershipBillBtn.disabled=false;

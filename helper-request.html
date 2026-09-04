@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Be om hjelp – Oslo Førerhundklubb</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<nav id="portalNav" aria-label="Hovedmeny"></nav>
+
+<main>
+<h1>Be om hjelp fra hjelpetrener</h1>
+
+<p id="status" role="status" aria-live="polite">
+Fyll ut forespørselen.
+</p>
+
+<form id="requestForm">
+
+<p>
+<label for="helpType">Hva ønsker du hjelp med?</label><br>
+<input id="helpType" type="text" maxlength="200" required>
+</p>
+
+<p>
+<label for="locationText">Hvor / sted?</label><br>
+<input id="locationText" type="text" maxlength="200" required>
+</p>
+
+<fieldset>
+<legend>Ønsket tid</legend>
+
+<label>
+<input type="radio" name="timingType" value="asap" checked>
+Så snart som mulig
+</label>
+<br>
+
+<label>
+<input type="radio" name="timingType" value="date">
+Fast dato
+</label>
+</fieldset>
+
+<div id="dateFields" hidden>
+<p>
+<label for="requestedDate">Dato</label><br>
+<input id="requestedDate" type="date">
+</p>
+
+<p>
+<label for="requestedTime">Klokkeslett, valgfritt</label><br>
+<input id="requestedTime" type="time">
+</p>
+</div>
+
+<p>
+<label for="comment">Kommentar, valgfritt</label><br>
+<textarea id="comment" rows="5" maxlength="1500"></textarea>
+</p>
+
+<fieldset>
+<legend>Del mobilnummer med hjelpetreneren som tar oppdraget?</legend>
+
+<label>
+<input type="radio" name="sharePhone" value="yes">
+Ja
+</label>
+<br>
+
+<label>
+<input type="radio" name="sharePhone" value="no" checked>
+Nei
+</label>
+</fieldset>
+
+<p>
+<button type="submit" id="submitButton">
+Send forespørsel
+</button>
+</p>
+
+</form>
+
+<section aria-labelledby="mineHeading">
+<h2 id="mineHeading">Mine forespørsler</h2>
+<div id="mineRequests"></div>
+</section>
+</main>
+
+<script>
+let me = null;
+
+const requestForm =
+  document.getElementById("requestForm");
+
+const helpType =
+  document.getElementById("helpType");
+
+const locationText =
+  document.getElementById("locationText");
+
+const dateFields =
+  document.getElementById("dateFields");
+
+const requestedDate =
+  document.getElementById("requestedDate");
+
+const requestedTime =
+  document.getElementById("requestedTime");
+
+const comment =
+  document.getElementById("comment");
+
+const submitButton =
+  document.getElementById("submitButton");
+
+const mineRequests =
+  document.getElementById("mineRequests");
+
+function esc(value) {
+  return String(value ?? "")
+    .replace(
+      /[&<>"']/g,
+      char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char])
+    );
+}
+
+function statusText(status) {
+  return ({
+    open: "Ledig",
+    assigned: "Tildelt",
+    agreed: "Avtalt",
+    completed: "Fullført",
+    cancelled: "Avlyst"
+  })[status] || status;
+}
+
+function timingText(row) {
+  if (
+    row.timing_type === "asap"
+  ) {
+    return "Så snart som mulig";
+  }
+
+  return (
+    String(
+      row.requested_date || ""
+    ) +
+    (
+      row.requested_time
+        ? " kl. " +
+          String(
+            row.requested_time
+          ).slice(0, 5)
+        : ""
+    )
+  );
+}
+
+document
+  .querySelectorAll(
+    'input[name="timingType"]'
+  )
+  .forEach(
+    radio =>
+      radio.addEventListener(
+        "change",
+        () => {
+          const dated =
+            document
+              .querySelector(
+                'input[name="timingType"]:checked'
+              )
+              .value === "date";
+
+          dateFields.hidden =
+            !dated;
+
+          requestedDate.required =
+            dated;
+        }
+      )
+  );
+
+async function invoke(body) {
+  const {
+    data,
+    error
+  } =
+    await sb.functions.invoke(
+      "helper-requests",
+      {
+        body
+      }
+    );
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
+
+  if (!data?.success) {
+    throw new Error(
+      data?.error ||
+      "Ukjent feil."
+    );
+  }
+
+  return data;
+}
+
+async function loadMine() {
+  const data =
+    await invoke({
+      action: "list_user"
+    });
+
+  mineRequests.innerHTML =
+    (data.requests || [])
+      .map(
+        row => `
+          <article>
+            <h3>${esc(row.help_type)}</h3>
+
+            <p>
+              Sted:
+              ${esc(row.location_text)}
+            </p>
+
+            <p>
+              Tid:
+              ${esc(timingText(row))}
+            </p>
+
+            <p>
+              Status:
+              ${esc(statusText(row.status))}
+            </p>
+
+            ${
+              row.assigned_helper_name
+                ? `<p>Hjelpetrener: ${esc(row.assigned_helper_name)}</p>`
+                : ""
+            }
+
+            ${
+              row.comment
+                ? `<p>Kommentar: ${esc(row.comment)}</p>`
+                : ""
+            }
+
+            <p>
+              Mobilnummer deles:
+              ${row.share_phone ? "Ja" : "Nei"}
+            </p>
+
+            ${
+              ["open","assigned","agreed"]
+                .includes(row.status)
+                ? `
+                  <p>
+                    <button
+                      type="button"
+                      data-cancel="${row.id}">
+                      Avlys forespørselen
+                    </button>
+                  </p>
+                `
+                : ""
+            }
+          </article>
+        `
+      )
+      .join("") ||
+    "<p>Du har ingen forespørsler.</p>";
+}
+
+mineRequests.addEventListener(
+  "click",
+  async event => {
+    const button =
+      event.target.closest(
+        "button[data-cancel]"
+      );
+
+    if (!button) {
+      return;
+    }
+
+    if (
+      !confirm(
+        "Er du sikker på at du vil avlyse forespørselen?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await invoke({
+        action: "cancel",
+        requestId:
+          button.dataset.cancel
+      });
+
+      announce(
+        "Forespørselen er avlyst."
+      );
+
+      await loadMine();
+
+    } catch (error) {
+      announce(
+        "Kunne ikke avlyse: " +
+        (
+          error?.message ||
+          String(error)
+        )
+      );
+    }
+  }
+);
+
+requestForm.addEventListener(
+  "submit",
+  async event => {
+    event.preventDefault();
+
+    const timingType =
+      document
+        .querySelector(
+          'input[name="timingType"]:checked'
+        )
+        .value;
+
+    const sharePhone =
+      document
+        .querySelector(
+          'input[name="sharePhone"]:checked'
+        )
+        .value === "yes";
+
+    submitButton.disabled =
+      true;
+
+    announce(
+      "Sender forespørselen …"
+    );
+
+    try {
+      await invoke({
+        action: "create",
+
+        helpType:
+          helpType.value.trim(),
+
+        locationText:
+          locationText.value.trim(),
+
+        timingType,
+
+        requestedDate:
+          timingType === "date"
+            ? requestedDate.value
+            : null,
+
+        requestedTime:
+          timingType === "date" &&
+          requestedTime.value
+            ? requestedTime.value
+            : null,
+
+        comment:
+          comment.value.trim(),
+
+        sharePhone
+      });
+
+      requestForm.reset();
+      dateFields.hidden = true;
+      requestedDate.required = false;
+
+      announce(
+        "Forespørselen er sendt. Aktive hjelpetrenere er varslet."
+      );
+
+      await loadMine();
+
+    } catch (error) {
+      announce(
+        "Kunne ikke sende forespørselen: " +
+        (
+          error?.message ||
+          String(error)
+        )
+      );
+
+    } finally {
+      submitButton.disabled =
+        false;
+    }
+  }
+);
+
+(async () => {
+  try {
+    await requireSession();
+
+    me =
+      await getCurrentAppUser();
+
+    await renderPortalNavigation({
+      current:
+        "helper-request",
+      me
+    });
+
+    await loadMine();
+
+    announce(
+      "Siden er klar."
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    announce(
+      "Kunne ikke åpne siden: " +
+      (
+        error?.message ||
+        String(error)
+      )
+    );
+  }
+})();
+</script>
+</body>
+</html>

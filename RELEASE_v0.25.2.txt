@@ -1,0 +1,10 @@
+v0.25.2 – Fiken UI
+
+- Medlemskontingent-seksjonen heter nå Massefakturering.
+- Produkttekst og beløp er tomme som standard, slik at massefakturering kan brukes til flere formål.
+- Rollefilter beholdes.
+- Søk viser faktiske søkeresultater med egen «Legg til»-knapp per person.
+- Det er mulig å velge én, noen få eller alle viste mottakere.
+- Valgte mottakere vises i egen liste.
+- Testfaktura er omdøpt til Enkeltfaktura.
+- Test-/debugpreget tekst er ryddet bort fra brukergrensesnittet.
