@@ -1,0 +1,10 @@
+v0.24.4 – Fiken fakturastatus og testfaktura
+
+- Test tilkobling-knappen er fjernet.
+- Status synkroniseres eksplisitt med settled=true og settled=false.
+- Fakturaoversikt viser betalt, utestående og forfalt.
+- Ny UI for ekte testfaktura til en person som er koblet mot Fiken.
+- Bankkonto og inntektskonto hentes fra Fiken.
+- Standard utsendelse: eFaktura først, e-post som fallback.
+- Fiken API bruker fortsatt dispatch-koden "vipps"; Fikens hjelpesider opplyser at Vipps eFaktura nå heter eFaktura.
+- Alternativt kan testfaktura opprettes uten utsendelse.

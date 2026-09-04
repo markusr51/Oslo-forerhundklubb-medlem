@@ -11,117 +11,196 @@
 </head>
 <body>
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
+
 <main>
 <h1>Fiken</h1>
-<p><small>Versjon v0.24.3</small></p>
+<p><small>Versjon v0.24.4</small></p>
+
 <p id="status" class="status" role="status" aria-live="polite">
-Fiken-tilkoblingen er ikke testet ennå.
+Fiken-administrasjonen er klar.
 </p>
 
-<section aria-labelledby="connectionHeading">
-<h2 id="connectionHeading">Tilkobling</h2>
-<p>Denne testen leser bare hvilke foretak API-nøkkelen har tilgang til. Den oppretter eller endrer ingenting i Fiken.</p>
-<p><button type="button" id="testConnectionBtn">Test Fiken-tilkobling</button></p>
+<section aria-labelledby="syncHeading">
+<h2 id="syncHeading">Synkronisering og fakturastatus</h2>
 
-<div id="companyResult" hidden>
-<h3>Foretak fra Fiken</h3>
-<dl id="companyDetails"></dl>
+<p>
+Synkroniseringen leser kontakter og fakturaer fra Oslo Førerhundklubb i Fiken.
+Betalingsstatus hentes nå eksplisitt fra Fikens <em>settled</em>-filter.
+</p>
+
+<p>
+<button type="button" id="syncExistingBtn">
+Synkroniser eksisterende Fiken-data
+</button>
+</p>
+
+<p id="syncResult" role="status" aria-live="polite">
+Ingen synkronisering er kjørt i denne økten.
+</p>
+
+<div id="invoiceOverview" hidden>
+<h3>Fakturaoversikt</h3>
+
+<table>
+<caption>De siste fakturaene som er synkronisert</caption>
+<thead>
+<tr>
+<th scope="col">Faktura</th>
+<th scope="col">Person</th>
+<th scope="col">Dato</th>
+<th scope="col">Forfall</th>
+<th scope="col">Beløp</th>
+<th scope="col">Status</th>
+</tr>
+</thead>
+<tbody id="invoiceRows"></tbody>
+</table>
 </div>
 </section>
 
-<section aria-labelledby="syncHeading">
-<h2 id="syncHeading">Eksisterende kontakter og fakturaer</h2>
-<p>
-Synkroniseringen leser kontakter og fakturaer fra Oslo Førerhundklubb i Fiken.
-Den endrer ikke fakturaene i Fiken.
-</p>
-<p>
-<button type="button" id="syncExistingBtn">Synkroniser eksisterende Fiken-data</button>
-</p>
-<p id="syncResult" role="status" aria-live="polite">
-Ingen synkronisering er kjørt ennå.
-</p>
-</section>
+<section aria-labelledby="testInvoiceHeading">
+<h2 id="testInvoiceHeading">Lag testfaktura</h2>
 
+<p>
+Denne delen oppretter en ekte faktura i Fiken. Bruk én kontrollert testmottaker.
+Standard utsendelse er eFaktura først, med e-post som fallback dersom Fiken ikke
+kan sende eFaktura til mottakeren.
+</p>
+
+<p id="setupResult" role="status" aria-live="polite">
+Laster fakturaoppsett …
+</p>
+
+<form id="testInvoiceForm" hidden>
+<p>
+<label for="personSelect">Mottaker</label><br>
+<select id="personSelect" required></select>
+</p>
+
+<p>
+<label for="amountInput">Beløp eks. mva, kroner</label><br>
+<input id="amountInput" type="number" min="1" step="0.01" value="10.00" required>
+</p>
+
+<p>
+<label for="descriptionInput">Fakturalinje</label><br>
+<input id="descriptionInput" type="text" value="Testfaktura medlemsportal" maxlength="200" required>
+</p>
+
+<p>
+<label for="dueDaysInput">Betalingsfrist i dager</label><br>
+<input id="dueDaysInput" type="number" min="1" max="90" value="14" required>
+</p>
+
+<p>
+<label for="bankAccountSelect">Bankkonto på faktura</label><br>
+<select id="bankAccountSelect" required></select>
+</p>
+
+<p>
+<label for="incomeAccountSelect">Inntektskonto</label><br>
+<select id="incomeAccountSelect" required></select>
+</p>
+
+<p>
+<label for="vatTypeSelect">MVA-type</label><br>
+<select id="vatTypeSelect" required>
+<option value="NONE" selected>Ingen MVA (NONE)</option>
+<option value="EXEMPT">Unntatt MVA (EXEMPT)</option>
+<option value="HIGH">Høy sats (HIGH)</option>
+<option value="MEDIUM">Middels sats (MEDIUM)</option>
+<option value="LOW">Lav sats (LOW)</option>
+<option value="OUTSIDE">Utenfor MVA-området (OUTSIDE)</option>
+</select>
+</p>
+
+<p>
+<label for="sendModeSelect">Utsendelse</label><br>
+<select id="sendModeSelect" required>
+<option value="efaktura_first" selected>eFaktura hvis mulig, ellers e-post</option>
+<option value="email">Bare e-post</option>
+<option value="create_only">Opprett i Fiken uten å sende</option>
+</select>
+</p>
+
+<p>
+<button type="submit" id="createInvoiceBtn">
+Opprett testfaktura
+</button>
+</p>
+</form>
+
+<p id="createResult" role="status" aria-live="polite"></p>
+</section>
 </main>
 
 <script>
 let me = null;
 
-const testConnectionBtn = document.getElementById("testConnectionBtn");
-const companyResult = document.getElementById("companyResult");
-const companyDetails = document.getElementById("companyDetails");
 const syncExistingBtn = document.getElementById("syncExistingBtn");
 const syncResult = document.getElementById("syncResult");
+const invoiceOverview = document.getElementById("invoiceOverview");
+const invoiceRows = document.getElementById("invoiceRows");
+
+const testInvoiceForm = document.getElementById("testInvoiceForm");
+const setupResult = document.getElementById("setupResult");
+const personSelect = document.getElementById("personSelect");
+const amountInput = document.getElementById("amountInput");
+const descriptionInput = document.getElementById("descriptionInput");
+const dueDaysInput = document.getElementById("dueDaysInput");
+const bankAccountSelect = document.getElementById("bankAccountSelect");
+const incomeAccountSelect = document.getElementById("incomeAccountSelect");
+const vatTypeSelect = document.getElementById("vatTypeSelect");
+const sendModeSelect = document.getElementById("sendModeSelect");
+const createInvoiceBtn = document.getElementById("createInvoiceBtn");
+const createResult = document.getElementById("createResult");
 
 function esc(v) {
-  return String(v ?? "").replace(/[&<>"']/g, c => ({
-    "&":"&amp;",
-    "<":"&lt;",
-    ">":"&gt;",
-    "\"":"&quot;",
-    "'":"&#39;"
+  return String(v ?? "").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
   }[c]));
 }
 
-testConnectionBtn.addEventListener("click", async () => {
-  testConnectionBtn.disabled = true;
-  companyResult.hidden = true;
-  announce("Tester Fiken-tilkoblingen …");
+function money(cents) {
+  if (cents == null || Number.isNaN(Number(cents))) return "";
+  return (Number(cents)/100).toLocaleString("nb-NO",{
+    style:"currency",
+    currency:"NOK"
+  });
+}
 
-  try {
-    const {data,error} = await sb.functions.invoke("fiken-test-connection", {
-      body: {}
-    });
+function statusText(v) {
+  return ({
+    paid:"Betalt",
+    outstanding:"Utestående",
+    overdue:"Forfalt",
+    unknown:"Ukjent"
+  })[v] || v || "Ukjent";
+}
 
-    if (error) {
-      announce("Fiken-testen feilet: " + error.message);
-      return;
-    }
+function renderInvoices(rows) {
+  invoiceRows.innerHTML = (rows || []).map(i=>`
+    <tr>
+      <td>${esc(i.fiken_invoice_number || i.fiken_invoice_id || "")}</td>
+      <td>${esc(i.person_name || i.person_email || "Ikke koblet")}</td>
+      <td>${esc(i.issue_date || "")}</td>
+      <td>${esc(i.due_date || "")}</td>
+      <td>${esc(money(i.amount_gross_cents))}</td>
+      <td>${esc(statusText(i.status))}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">Ingen fakturaer.</td></tr>`;
 
-    if (!data?.success) {
-      announce("Fiken-testen feilet: " + (data?.error || "Ukjent feil."));
-      return;
-    }
+  invoiceOverview.hidden = false;
+}
 
-    const companies = Array.isArray(data.companies) ? data.companies : [];
-
-    if (!companies.length) {
-      announce("Tilkoblingen virker, men API-nøkkelen returnerte ingen foretak.");
-      return;
-    }
-
-    companyDetails.innerHTML = companies.map((company,index) => `
-      <dt>Foretak ${index + 1}</dt>
-      <dd>${esc(company.name || "Navn mangler")}</dd>
-      <dt>Organisasjonsnummer</dt>
-      <dd>${esc(company.organizationNumber || "Ikke oppgitt")}</dd>
-      <dt>Fiken company slug</dt>
-      <dd>${esc(company.slug || "Ikke oppgitt")}</dd>
-    `).join("");
-
-    companyResult.hidden = false;
-    announce(`Fiken-tilkoblingen fungerer. Fant ${companies.length} foretak.`);
-  } catch (err) {
-    console.error(err);
-    announce("Fiken-testen feilet: " + (err?.message || String(err)));
-  } finally {
-    testConnectionBtn.disabled = false;
-  }
-});
-
-
-syncExistingBtn.addEventListener("click", async () => {
-  console.log("FIKEN SYNC: knapp aktivert");
-  syncResult.textContent = "Knappen er aktivert. Starter synkronisering …";
-  announce("Knappen er aktivert. Starter synkronisering …");
+syncExistingBtn.addEventListener("click", async ()=>{
   syncExistingBtn.disabled = true;
   syncResult.textContent = "Synkroniserer …";
-  announce("Synkroniserer eksisterende Fiken-data …");
+  announce("Synkroniserer Fiken-data …");
 
   try {
-    const {data,error} = await sb.functions.invoke("fiken-sync-existing", {
-      body: {}
+    const {data,error} = await sb.functions.invoke("fiken-sync-existing",{
+      body:{}
     });
 
     if (error) {
@@ -139,15 +218,14 @@ syncExistingBtn.addEventListener("click", async () => {
 
     syncResult.textContent =
       `Synkronisering ferdig. Kontakter: ${data.contacts.total}, ` +
-      `koblet til personer: ${data.contacts.linked}. ` +
-      `Fakturaer: ${data.invoices.total}, ` +
-      `koblet til personer: ${data.invoices.linked}. ` +
-      `Betalt: ${data.invoices.paid}, ` +
-      `utestående: ${data.invoices.outstanding}, ` +
-      `forfalt: ${data.invoices.overdue}.`;
+      `koblet til personer: ${data.contacts.linked}. Fakturaer: ${data.invoices.total}, ` +
+      `koblet til personer: ${data.invoices.linked}. Betalt: ${data.invoices.paid}, ` +
+      `utestående: ${data.invoices.outstanding}, forfalt: ${data.invoices.overdue}.`;
 
+    renderInvoices(data.recentInvoices || []);
     announce(syncResult.textContent);
-  } catch (err) {
+
+  } catch(err) {
     console.error(err);
     syncResult.textContent =
       "Synkronisering feilet: " + (err?.message || String(err));
@@ -157,7 +235,136 @@ syncExistingBtn.addEventListener("click", async () => {
   }
 });
 
-(async () => {
+async function loadInvoiceSetup() {
+  setupResult.textContent = "Laster personer, bankkontoer og inntektskontoer …";
+
+  const {data,error} = await sb.functions.invoke("fiken-create-invoice",{
+    body:{action:"setup"}
+  });
+
+  if (error) {
+    setupResult.textContent = "Kunne ikke laste fakturaoppsett: " + error.message;
+    return;
+  }
+
+  if (!data?.success) {
+    setupResult.textContent =
+      "Kunne ikke laste fakturaoppsett: " + (data?.error || "Ukjent feil.");
+    return;
+  }
+
+  personSelect.innerHTML =
+    '<option value="">Velg person</option>' +
+    (data.people || []).map(p=>
+      `<option value="${p.id}">${esc(p.full_name)} – ${esc(p.email || "ingen e-post")}</option>`
+    ).join("");
+
+  bankAccountSelect.innerHTML =
+    '<option value="">Velg bankkonto</option>' +
+    (data.bankAccounts || []).map(b=>
+      `<option value="${esc(b.accountCode)}">${esc(b.name)} – ${esc(b.bankAccountNumber)} – ${esc(b.accountCode)}</option>`
+    ).join("");
+
+  incomeAccountSelect.innerHTML =
+    '<option value="">Velg inntektskonto</option>' +
+    (data.incomeAccounts || []).map(a=>
+      `<option value="${esc(a.code)}">${esc(a.code)} – ${esc(a.name)}</option>`
+    ).join("");
+
+  testInvoiceForm.hidden = false;
+
+  setupResult.textContent =
+    `Klar. ${data.people?.length || 0} personer er koblet til Fiken. ` +
+    `${data.bankAccounts?.length || 0} bankkontoer og ${data.incomeAccounts?.length || 0} inntektskontoer er tilgjengelige.`;
+}
+
+testInvoiceForm.addEventListener("submit", async ev=>{
+  ev.preventDefault();
+
+  const amount = Number(amountInput.value);
+
+  if (!personSelect.value) {
+    announce("Velg mottaker.");
+    personSelect.focus();
+    return;
+  }
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    announce("Skriv inn et gyldig beløp.");
+    amountInput.focus();
+    return;
+  }
+
+  const personName =
+    personSelect.options[personSelect.selectedIndex]?.text || "valgt mottaker";
+
+  const sendText =
+    sendModeSelect.options[sendModeSelect.selectedIndex]?.text || "";
+
+  if (!confirm(
+    `Dette oppretter en ekte faktura i Fiken til ${personName} på ${amount.toFixed(2)} kr. Utsendelse: ${sendText}. Fortsette?`
+  )) {
+    return;
+  }
+
+  createInvoiceBtn.disabled = true;
+  createResult.textContent = "Oppretter faktura i Fiken …";
+  announce(createResult.textContent);
+
+  try {
+    const {data,error} = await sb.functions.invoke("fiken-create-invoice",{
+      body:{
+        action:"create_test_invoice",
+        personId:personSelect.value,
+        amountCents:Math.round(amount*100),
+        description:descriptionInput.value.trim(),
+        dueDays:Number(dueDaysInput.value || 14),
+        bankAccountCode:bankAccountSelect.value,
+        incomeAccount:incomeAccountSelect.value,
+        vatType:vatTypeSelect.value,
+        sendMode:sendModeSelect.value
+      }
+    });
+
+    if (error) {
+      createResult.textContent = "Fakturaoppretting feilet: " + error.message;
+      announce(createResult.textContent);
+      return;
+    }
+
+    if (!data?.success) {
+      createResult.textContent =
+        "Fakturaoppretting feilet: " + (data?.error || "Ukjent feil.");
+      announce(createResult.textContent);
+      return;
+    }
+
+    const dispatch =
+      data.dispatchMethod === "efaktura"
+        ? "sendt som eFaktura"
+        : data.dispatchMethod === "email"
+          ? (data.fallbackUsed ? "sendt på e-post etter eFaktura-fallback" : "sendt på e-post")
+          : "opprettet uten utsendelse";
+
+    createResult.textContent =
+      `Faktura opprettet. Fakturanummer: ${data.invoiceNumber || "ikke hentet"}, ` +
+      `beløp: ${money(data.grossCents)}, forfall: ${data.dueDate}. ${dispatch}. ` +
+      `${data.kid ? "KID: " + data.kid + ". " : ""}` +
+      `${data.sendError ? "Utsendelsesmerknad: " + data.sendError : ""}`;
+
+    announce(createResult.textContent);
+
+  } catch(err) {
+    console.error(err);
+    createResult.textContent =
+      "Fakturaoppretting feilet: " + (err?.message || String(err));
+    announce(createResult.textContent);
+  } finally {
+    createInvoiceBtn.disabled = false;
+  }
+});
+
+(async()=>{
   try {
     await requireSession();
     me = await getCurrentAppUser();
@@ -168,7 +375,9 @@ syncExistingBtn.addEventListener("click", async () => {
     }
 
     await renderPortalNavigation({current:"fiken",me});
-  } catch (err) {
+    await loadInvoiceSetup();
+
+  } catch(err) {
     console.error(err);
     announce("Kunne ikke åpne Fiken-administrasjonen.");
   }
