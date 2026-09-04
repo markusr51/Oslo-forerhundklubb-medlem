@@ -43,6 +43,7 @@
 <a href="communication-history.html">Kommunikasjonshistorikk</a><a href="admins.html">Brukere og tilganger</a><a href="history.html">Endringshistorikk</a><button onclick="logout()">Logg ut</button></nav>
 <main>
 <h1>Legg til person</h1>
+<p id="fikenSourceInfo" hidden>Denne personen er hentet fra en Fiken-kontakt. Kontroller opplysningene før du lagrer.</p>
 
 <p id="status" class="status" role="status" aria-live="polite"></p>
 <form id="personForm" novalidate>
@@ -62,6 +63,19 @@ const personEmail = document.getElementById("personEmail");
 const personPhone = document.getElementById("personPhone");
 const createPersonButton = document.getElementById("createPersonButton");
 const statusElement = document.getElementById("status");
+
+const fikenSourceInfo = document.getElementById("fikenSourceInfo");
+const queryParams = new URLSearchParams(location.search);
+const fromFiken = queryParams.get("fromFiken") === "1";
+const fikenContactId = queryParams.get("fikenContactId");
+
+if (fromFiken) {
+  personName.value = queryParams.get("name") || "";
+  personEmail.value = queryParams.get("email") || "";
+  personPhone.value = queryParams.get("phone") || "";
+  fikenSourceInfo.hidden = false;
+}
+
 
 function setStatus(message) {
   if (statusElement) statusElement.textContent = message;
@@ -116,11 +130,34 @@ async function createPerson() {
     if (error) throw error;
 
     personForm.reset();
+    let fikenLinkMessage = "";
+
+    if (data?.id && fromFiken && fikenContactId) {
+      const {data:linkData,error:linkError} = await sb.functions.invoke(
+        "fiken-invoice-actions",
+        {
+          body:{
+            action:"link_contact",
+            personId:data.id,
+            fikenContactId:Number(fikenContactId)
+          }
+        }
+      );
+
+      if (linkError || !linkData?.success) {
+        fikenLinkMessage =
+          " Personen ble opprettet, men koblingen til Fiken feilet. Gå tilbake til Fiken-siden og synkroniser/koble manuelt.";
+      } else {
+        fikenLinkMessage =
+          " Personen er også koblet til den eksisterende Fiken-kontakten og fakturaene.";
+      }
+    }
+
     if (data?.id) {
       createdPersonLink.href = `person.html?id=${encodeURIComponent(data.id)}`;
       createdPersonActions.hidden = false;
     }
-    setStatus(`Personen ${data?.full_name || fullName} er opprettet. Du kan nå gå til personen for å tildele roller eller portaltilgang.`);
+    setStatus(`Personen ${data?.full_name || fullName} er opprettet.${fikenLinkMessage} Du kan nå gå til personen for å tildele roller eller portaltilgang.`);
     createdPersonLink.focus();
   } catch (error) {
     console.error("Opprett person feilet:", error);

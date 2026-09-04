@@ -1,0 +1,9 @@
+v0.24.5 – Fiken handlinger
+
+- Ubetalt og forfalt er nå to separate egenskaper. Forfalt er en delmengde av ubetalte.
+- Fakturaoversikten kan sende eksisterende faktura på nytt uten å opprette ny.
+- Nytt eFaktura-forsøk normaliserer norsk mobilnummer før Fiken-kallet.
+- Full kreditering med bekreftelse og kreditnota i Fiken.
+- Ukoblede Fiken-kunder viser navn/e-post/telefon fra Fiken.
+- «Opprett person fra Fiken-kontakt» åpner Opprett person med feltene ferdig utfylt.
+- Når personen lagres, kobles Fiken-kontakten og eksisterende fakturaer til personen.
