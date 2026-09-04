@@ -192,6 +192,18 @@ function renderMine(rows) {
             </p>
 
             ${
+              row.agreed_date
+                ? `
+                  <p>
+                    Avtalt:
+                    ${esc(row.agreed_date)}
+                    ${row.agreed_time ? " kl. " + esc(String(row.agreed_time).slice(0,5)) : ""}
+                  </p>
+                `
+                : ""
+            }
+
+            ${
               row.comment
                 ? `<p>Kommentar: ${esc(row.comment)}</p>`
                 : ""
@@ -219,14 +231,38 @@ function renderMine(rows) {
             ${
               row.status === "assigned"
                 ? `
-                  <p>
-                    <button
-                      type="button"
-                      data-status="agreed"
-                      data-id="${row.id}">
-                      Marker som avtalt
-                    </button>
-                  </p>
+                  <fieldset>
+                    <legend>Avtal tidspunkt</legend>
+
+                    <p>
+                      <label for="agreed-date-${row.id}">
+                        Avtalt dato
+                      </label><br>
+                      <input
+                        id="agreed-date-${row.id}"
+                        type="date"
+                        data-agreed-date="${row.id}">
+                    </p>
+
+                    <p>
+                      <label for="agreed-time-${row.id}">
+                        Avtalt klokkeslett, valgfritt
+                      </label><br>
+                      <input
+                        id="agreed-time-${row.id}"
+                        type="time"
+                        data-agreed-time="${row.id}">
+                    </p>
+
+                    <p>
+                      <button
+                        type="button"
+                        data-status="agreed"
+                        data-id="${row.id}">
+                        Marker som avtalt
+                      </button>
+                    </p>
+                  </fieldset>
                 `
                 : ""
             }
@@ -368,12 +404,41 @@ myRequests.addEventListener(
     }
 
     try {
+      const requestId =
+        button.dataset.id;
+
+      const agreedDateInput =
+        document.querySelector(
+          `[data-agreed-date="${requestId}"]`
+        );
+
+      const agreedTimeInput =
+        document.querySelector(
+          `[data-agreed-time="${requestId}"]`
+        );
+
+      if (
+        newStatus === "agreed" &&
+        !agreedDateInput?.value
+      ) {
+        announce(
+          "Velg avtalt dato."
+        );
+
+        agreedDateInput?.focus();
+
+        return;
+      }
+
       await invoke({
         action: "set_status",
-        requestId:
-          button.dataset.id,
+        requestId,
         status:
-          newStatus
+          newStatus,
+        agreedDate:
+          agreedDateInput?.value || null,
+        agreedTime:
+          agreedTimeInput?.value || null
       });
 
       announce(

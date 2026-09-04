@@ -176,6 +176,7 @@ async function renderPortalNavigation({
     ["helper-settlement.html", "Hjelpetreneroppgjør", "helper-settlement"],
     ["helper-overview.html", "Hjelpetreneroversikt", "helper-overview"],
     ["helper-requests.html", "Hjelpetrenerforespørsler", "helper-requests"],
+    ["helper-board-overview.html", "Hjelpetreneroppfølging", "helper-board-overview"],
     ["expense-admin.html", "Utlegg", "expense-admin"],
     ["sms.html", "SMS", "sms"],
     ["email.html", "E-post", "email"],

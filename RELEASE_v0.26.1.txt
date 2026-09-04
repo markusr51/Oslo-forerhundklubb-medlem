@@ -1,0 +1,9 @@
+v0.26.1 – Styreoversikt for hjelpetreneroppfølging
+
+- Hjelpetrener kan registrere avtalt dato og valgfritt klokkeslett før status settes til Avtalt.
+- Bruker ser avtalt dato/tid på egen forespørsel.
+- Ny intern side: Hjelpetreneroppfølging.
+- Åpne forespørsler vises i egen seksjon.
+- Avtalte oppdrag vises som kommende hjelpetreneraktiviteter med bruker, hjelpetrener, dato/tid og sted.
+- Fullførte og avlyste oppdrag vises ikke som kommende aktiviteter.
+- Oversikten er laget for styreleder/nestleder og ligger under adminområdet.

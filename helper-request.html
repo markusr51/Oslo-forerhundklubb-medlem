@@ -250,6 +250,18 @@ async function loadMine() {
             </p>
 
             ${
+              row.agreed_date
+                ? `
+                  <p>
+                    Avtalt:
+                    ${esc(row.agreed_date)}
+                    ${row.agreed_time ? " kl. " + esc(String(row.agreed_time).slice(0,5)) : ""}
+                  </p>
+                `
+                : ""
+            }
+
+            ${
               row.assigned_helper_name
                 ? `<p>Hjelpetrener: ${esc(row.assigned_helper_name)}</p>`
                 : ""
