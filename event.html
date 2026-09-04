@@ -191,18 +191,6 @@ Systemet hopper over personer som allerede er fakturert for dette arrangementet.
 </p>
 
 <p>
-<label for="eventBillingVat">MVA-type</label><br>
-<select id="eventBillingVat" required>
-<option value="NONE" selected>Ingen MVA (NONE)</option>
-<option value="EXEMPT">Unntatt MVA (EXEMPT)</option>
-<option value="HIGH">Høy sats (HIGH)</option>
-<option value="MEDIUM">Middels sats (MEDIUM)</option>
-<option value="LOW">Lav sats (LOW)</option>
-<option value="OUTSIDE">Utenfor MVA-området (OUTSIDE)</option>
-</select>
-</p>
-
-<p>
 <label for="eventBillingSendMode">Utsendelse</label><br>
 <select id="eventBillingSendMode">
 <option value="auto" selected>Fiken auto – eFaktura når mulig</option>
@@ -538,7 +526,6 @@ const eventGuestPricing = document.getElementById("eventGuestPricing");
 const eventBillingDueDays = document.getElementById("eventBillingDueDays");
 const eventBillingBank = document.getElementById("eventBillingBank");
 const eventBillingIncome = document.getElementById("eventBillingIncome");
-const eventBillingVat = document.getElementById("eventBillingVat");
 const eventBillingSendMode = document.getElementById("eventBillingSendMode");
 const eventBillingSubmit = document.getElementById("eventBillingSubmit");
 const eventBillingResult = document.getElementById("eventBillingResult");
@@ -1804,7 +1791,6 @@ eventBillingForm.addEventListener("submit",async ev=>{
       dueDays:Number(eventBillingDueDays.value||14),
       bankAccountCode:eventBillingBank.value,
       incomeAccount:eventBillingIncome.value,
-      vatType:eventBillingVat.value,
       sendMode:eventBillingSendMode.value
     }});
 

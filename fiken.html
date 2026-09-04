@@ -13,15 +13,15 @@
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
 <main>
 <h1>Fiken</h1>
-<p><small>Versjon v0.25</small></p>
+<p><small>Versjon v0.25.1</small></p>
 <p id="status" class="status" role="status" aria-live="polite">Fiken-administrasjonen er klar.</p>
 
 <section aria-labelledby="syncHeading">
 <h2 id="syncHeading">Synkronisering og fakturaoversikt</h2>
 <p>
-Ubetalte fakturaer telles som ubetalte også etter forfall. «Forfalt» er derfor en ekstra egenskap ved en ubetalt faktura.
+Fiken synkroniseres automatisk når siden åpnes og deretter hvert 15. minutt så lenge Fiken-siden er åpen.
+Ubetalte fakturaer telles som ubetalte også etter forfall. «Forfalt» er en ekstra egenskap ved en ubetalt faktura.
 </p>
-<p><button type="button" id="syncExistingBtn">Synkroniser eksisterende Fiken-data</button></p>
 <p id="syncResult" role="status" aria-live="polite">Ingen synkronisering er kjørt i denne økten.</p>
 
 <div id="invoiceOverview" hidden>
@@ -55,6 +55,13 @@ Systemet hopper automatisk over personer som allerede har fått kontingentfaktur
 </p>
 
 <p>
+<label for="membershipRoleFilter">Fakturer etter rolle</label><br>
+<select id="membershipRoleFilter">
+<option value="">Alle aktive personer</option>
+</select>
+</p>
+
+<p>
 <label for="membershipSearch">Søk i aktive personer</label><br>
 <input id="membershipSearch" type="search">
 </p>
@@ -79,7 +86,7 @@ Systemet hopper automatisk over personer som allerede har fått kontingentfaktur
 
 <p>
 <label for="membershipAmount">Kontingent per person, kroner</label><br>
-<input id="membershipAmount" type="number" min="1" step="0.01" required>
+<input id="membershipAmount" type="number" min="1" step="0.01" value="300.00" required>
 </p>
 
 <p>
@@ -100,18 +107,6 @@ Systemet hopper automatisk over personer som allerede har fått kontingentfaktur
 <p>
 <label for="membershipIncome">Inntektskonto</label><br>
 <select id="membershipIncome" required></select>
-</p>
-
-<p>
-<label for="membershipVat">MVA-type</label><br>
-<select id="membershipVat" required>
-<option value="NONE" selected>Ingen MVA (NONE)</option>
-<option value="EXEMPT">Unntatt MVA (EXEMPT)</option>
-<option value="HIGH">Høy sats (HIGH)</option>
-<option value="MEDIUM">Middels sats (MEDIUM)</option>
-<option value="LOW">Lav sats (LOW)</option>
-<option value="OUTSIDE">Utenfor MVA-området (OUTSIDE)</option>
-</select>
 </p>
 
 <p>
@@ -145,15 +140,6 @@ Dette oppretter en ekte faktura i Fiken. Standard er eFaktura først. Mobilnumme
 <p><label for="dueDaysInput">Betalingsfrist i dager</label><br><input id="dueDaysInput" type="number" min="1" max="90" value="14" required></p>
 <p><label for="bankAccountSelect">Bankkonto på faktura</label><br><select id="bankAccountSelect" required></select></p>
 <p><label for="incomeAccountSelect">Inntektskonto</label><br><select id="incomeAccountSelect" required></select></p>
-<p><label for="vatTypeSelect">MVA-type</label><br>
-<select id="vatTypeSelect" required>
-<option value="NONE" selected>Ingen MVA (NONE)</option>
-<option value="EXEMPT">Unntatt MVA (EXEMPT)</option>
-<option value="HIGH">Høy sats (HIGH)</option>
-<option value="MEDIUM">Middels sats (MEDIUM)</option>
-<option value="LOW">Lav sats (LOW)</option>
-<option value="OUTSIDE">Utenfor MVA-området (OUTSIDE)</option>
-</select></p>
 <p><label for="sendModeSelect">Utsendelse</label><br>
 <select id="sendModeSelect" required>
 <option value="efaktura_first" selected>eFaktura hvis mulig, ellers e-post</option>
@@ -172,7 +158,6 @@ let latestInvoices=[];
 let billingSetup=null;
 let membershipPeopleData=[];
 
-const syncExistingBtn=document.getElementById("syncExistingBtn");
 const syncResult=document.getElementById("syncResult");
 const invoiceOverview=document.getElementById("invoiceOverview");
 const invoiceRows=document.getElementById("invoiceRows");
@@ -184,11 +169,11 @@ const descriptionInput=document.getElementById("descriptionInput");
 const dueDaysInput=document.getElementById("dueDaysInput");
 const bankAccountSelect=document.getElementById("bankAccountSelect");
 const incomeAccountSelect=document.getElementById("incomeAccountSelect");
-const vatTypeSelect=document.getElementById("vatTypeSelect");
 const sendModeSelect=document.getElementById("sendModeSelect");
 const createInvoiceBtn=document.getElementById("createInvoiceBtn");
 const createResult=document.getElementById("createResult");
 
+const membershipRoleFilter=document.getElementById("membershipRoleFilter");
 const membershipSearch=document.getElementById("membershipSearch");
 const selectAllMembershipBtn=document.getElementById("selectAllMembershipBtn");
 const clearMembershipBtn=document.getElementById("clearMembershipBtn");
@@ -201,7 +186,6 @@ const membershipDescription=document.getElementById("membershipDescription");
 const membershipDueDays=document.getElementById("membershipDueDays");
 const membershipBank=document.getElementById("membershipBank");
 const membershipIncome=document.getElementById("membershipIncome");
-const membershipVat=document.getElementById("membershipVat");
 const membershipSendMode=document.getElementById("membershipSendMode");
 const membershipBillBtn=document.getElementById("membershipBillBtn");
 const membershipBillingResult=document.getElementById("membershipBillingResult");
@@ -340,7 +324,6 @@ invoiceRows.addEventListener("click",async ev=>{
 });
 
 async function syncInvoices(){
-  syncExistingBtn.disabled=true;
   syncResult.textContent="Synkroniserer …";
   announce("Synkroniserer Fiken-data …");
 
@@ -362,10 +345,8 @@ async function syncInvoices(){
     syncResult.textContent="Synkronisering feilet: "+(err?.message||String(err));
     announce(syncResult.textContent);
   }finally{
-    syncExistingBtn.disabled=false;
   }
 }
-syncExistingBtn.addEventListener("click",syncInvoices);
 
 async function loadInvoiceSetup(){
   setupResult.textContent="Laster personer, bankkontoer og inntektskontoer …";
@@ -409,7 +390,6 @@ testInvoiceForm.addEventListener("submit",async ev=>{
       dueDays:Number(dueDaysInput.value||14),
       bankAccountCode:bankAccountSelect.value,
       incomeAccount:incomeAccountSelect.value,
-      vatType:vatTypeSelect.value,
       sendMode:sendModeSelect.value
     }});
     if(error) throw new Error(error.message);
@@ -440,11 +420,15 @@ function renderMembershipPeople(){
   const q=membershipSearch.value.trim().toLowerCase();
   const selected=new Set([...membershipPeople.selectedOptions].map(o=>o.value));
 
-  const list=membershipPeopleData.filter(p=>
-    !q ||
-    String(p.full_name||"").toLowerCase().includes(q) ||
-    String(p.email||"").toLowerCase().includes(q)
-  );
+  const roleId=membershipRoleFilter.value;
+  const list=membershipPeopleData.filter(p=>{
+    const roleOk=!roleId || (p.roles||[]).some(r=>String(r.id)===roleId);
+    const searchOk=
+      !q ||
+      String(p.full_name||"").toLowerCase().includes(q) ||
+      String(p.email||"").toLowerCase().includes(q);
+    return roleOk && searchOk;
+  });
 
   membershipPeople.innerHTML=list.map(p=>
     `<option value="${p.id}" ${selected.has(p.id)?"selected":""} ${p.fiken_linked?"":"disabled"}>` +
@@ -463,6 +447,7 @@ function updateMembershipSelection(){
       : "Ingen personer valgt.";
 }
 
+membershipRoleFilter.addEventListener("change",renderMembershipPeople);
 membershipSearch.addEventListener("input",renderMembershipPeople);
 membershipPeople.addEventListener("change",updateMembershipSelection);
 
@@ -485,6 +470,17 @@ async function loadBillingSetup(){
 
   billingSetup=data;
   membershipPeopleData=data.people||[];
+
+  const roleMap=new Map();
+  membershipPeopleData.forEach(p=>
+    (p.roles||[]).forEach(r=>roleMap.set(String(r.id),r.name))
+  );
+  membershipRoleFilter.innerHTML=
+    '<option value="">Alle aktive personer</option>'+
+    [...roleMap.entries()]
+      .sort((a,b)=>String(a[1]).localeCompare(String(b[1]),"nb"))
+      .map(([id,name])=>`<option value="${esc(id)}">${esc(name)}</option>`)
+      .join("");
 
   membershipYear.value=String(new Date().getFullYear());
 
@@ -540,7 +536,6 @@ membershipBillingForm.addEventListener("submit",async ev=>{
       dueDays:Number(membershipDueDays.value||14),
       bankAccountCode:membershipBank.value,
       incomeAccount:membershipIncome.value,
-      vatType:membershipVat.value,
       sendMode:membershipSendMode.value
     }});
 
@@ -573,6 +568,8 @@ membershipBillingForm.addEventListener("submit",async ev=>{
     await renderPortalNavigation({current:"fiken",me});
     await loadInvoiceSetup();
     await loadBillingSetup();
+    await syncInvoices();
+    setInterval(syncInvoices, 15 * 60 * 1000);
   }catch(err){
     console.error(err);
     announce("Kunne ikke åpne Fiken-administrasjonen.");

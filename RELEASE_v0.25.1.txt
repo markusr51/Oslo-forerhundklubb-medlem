@@ -1,0 +1,8 @@
+v0.25.1 – fakturering før pilot
+
+- Medlemskontingent kan filtreres etter rolle, f.eks. Ekvipasje.
+- Standard kontingentbeløp er 300 kr per år, men beløpet kan endres ved fakturering.
+- MVA-valg er fjernet fra fakturering; klubben fakturerer uten MVA (NONE).
+- Fiken-siden synkroniserer automatisk ved åpning og hvert 15. minutt mens siden er åpen.
+- Manuell synkroniseringsknapp er fjernet fra Fiken-siden.
+- Arrangementsfakturering bruker også NONE uten MVA-valg.
