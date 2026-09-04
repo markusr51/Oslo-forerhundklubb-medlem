@@ -13,6 +13,7 @@
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
 <main>
 <h1>Fiken</h1>
+<p><small>Versjon v0.24.3</small></p>
 <p id="status" class="status" role="status" aria-live="polite">
 Fiken-tilkoblingen er ikke testet ennå.
 </p>
@@ -46,6 +47,12 @@ Ingen synkronisering er kjørt ennå.
 
 <script>
 let me = null;
+
+const testConnectionBtn = document.getElementById("testConnectionBtn");
+const companyResult = document.getElementById("companyResult");
+const companyDetails = document.getElementById("companyDetails");
+const syncExistingBtn = document.getElementById("syncExistingBtn");
+const syncResult = document.getElementById("syncResult");
 
 function esc(v) {
   return String(v ?? "").replace(/[&<>"']/g, c => ({
@@ -105,6 +112,9 @@ testConnectionBtn.addEventListener("click", async () => {
 
 
 syncExistingBtn.addEventListener("click", async () => {
+  console.log("FIKEN SYNC: knapp aktivert");
+  syncResult.textContent = "Knappen er aktivert. Starter synkronisering …";
+  announce("Knappen er aktivert. Starter synkronisering …");
   syncExistingBtn.disabled = true;
   syncResult.textContent = "Synkroniserer …";
   announce("Synkroniserer eksisterende Fiken-data …");

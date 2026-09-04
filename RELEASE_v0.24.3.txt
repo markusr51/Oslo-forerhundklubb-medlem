@@ -1,0 +1,6 @@
+v0.24.3 – Fiken synkroniseringsknapp
+
+- Eksplisitte document.getElementById-oppslag i fiken.html.
+- Synkroniseringsknappen gir umiddelbar status før Edge Function-kallet.
+- Fiken-siden viser versjon v0.24.3.
+- Menylenken bruker ?v=0243 for å omgå Safari/GitHub Pages-cache.
