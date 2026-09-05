@@ -1,0 +1,12 @@
+v0.27 – Pilotforberedelse
+
+- Serverbasert Fiken-autosynkronisering via Supabase Cron/pg_cron + pg_net.
+- Synkronisering planlagt én gang per time, minutt 07.
+- Cron-kallet autentiseres med Supabase Secret Key lagret i Vault.
+- Ny fiken-auto-sync Edge Function for server-til-server-kjøring.
+- Sist vellykkede/feilede Fiken-synkronisering lagres i integration_sync_status.
+- Fiken-siden viser status for bakgrunnssynkronisering.
+- Nettleserens 15-minutters intervall er fjernet.
+- Fiken-siden gjør fortsatt én fersk synkronisering når den åpnes.
+- Pilotversjon markert i adminområdet.
+- Kort smoke-test er inkludert; full regresjonstest er ikke nødvendig.

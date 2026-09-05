@@ -1,0 +1,54 @@
+PILOT SMOKE-TEST – v0.27
+
+Målet er IKKE å teste hele portalen på nytt.
+Test bare funksjoner som nylig er endret eller som kan gi alvorlige konsekvenser ved feil.
+
+1. VANLIG BRUKER
+- Logg inn som vanlig bruker.
+- Bekreft at admin/Fiken ikke er tilgjengelig.
+- Opprett én hjelpetrenerforespørsel.
+- Test mobilnummerdeling = Nei.
+
+2. HJELPETRENER
+- Logg inn som aktiv hjelpetrener.
+- Bekreft at forespørselen vises.
+- Ta oppdraget.
+- Bekreft at brukerens mobilnummer IKKE vises når samtykke var Nei.
+- Registrer avtalt dato.
+- Marker oppdraget som fullført.
+
+3. HJELPETRENERFORESØRSEL MED MOBILDELING
+- Opprett én ny forespørsel med mobilnummerdeling = Ja.
+- Ta den som hjelpetrener.
+- Bekreft at nummer først vises etter tildeling.
+
+4. STYRE/ADMIN
+- Åpne Hjelpetreneroppfølging.
+- Bekreft at åpne forespørsler vises.
+- Bekreft at et avtalt oppdrag vises under kommende hjelpetreneraktiviteter.
+- Bekreft at fullført/avlyst oppdrag forsvinner derfra.
+
+5. FIKEN
+- Opprett én enkeltfaktura til en kontrollert mottaker.
+- Bekreft Fiken auto/eFaktura.
+- Massefakturer KUN én valgt mottaker.
+- Fakturer KUN én påmeldt fra et testarrangement.
+- Bekreft at dobbeltfakturering sperres ved nytt forsøk.
+
+6. BAKGRUNNSSYNKRONISERING
+- Etter at cron er satt opp: kjør fiken-auto-sync én gang manuelt fra Edge Function test eller vent til neste hele time + 7 minutter.
+- Åpne Fiken-siden.
+- Bekreft at «Bakgrunnssynkronisering OK» viser tidspunkt.
+- Kontroller at betalingsstatus på en kjent faktura stemmer med Fiken.
+
+7. PRODUKSJONSSJEKK
+- Ingen API-nøkler/secrets i GitHub.
+- FIKEN_API_TOKEN ligger kun i Supabase Secrets.
+- Cron Secret Key ligger kun i Supabase Vault.
+- Verify JWT:
+  * fiken-auto-sync = AV
+  * vanlige bruker-/adminfunksjoner = PÅ
+- Testdata som kan forvirre pilotbrukere er ryddet eller tydelig merket.
+
+Når disse punktene er OK:
+MERK v0.27 SOM PILOTKLAR.

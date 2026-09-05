@@ -13,13 +13,14 @@
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
 <main>
 <h1>Fiken</h1>
-<p><small>Versjon v0.25.2</small></p>
+<p><small>Versjon v0.27</small></p>
 <p id="status" class="status" role="status" aria-live="polite">Fiken-administrasjonen er klar.</p>
+<p id="backgroundSyncStatus" role="status" aria-live="polite">Bakgrunnssynkronisering: laster status …</p>
 
 <section aria-labelledby="syncHeading">
 <h2 id="syncHeading">Synkronisering og fakturaoversikt</h2>
 <p>
-Fiken synkroniseres automatisk når siden åpnes og deretter hvert 15. minutt så lenge Fiken-siden er åpen.
+Fiken synkroniseres automatisk i bakgrunnen hver time. Når denne siden åpnes, hentes også ferske data med én gang.
 Ubetalte fakturaer telles som ubetalte også etter forfall. «Forfalt» er en ekstra egenskap ved en ubetalt faktura.
 </p>
 <p id="syncResult" role="status" aria-live="polite">Ingen synkronisering er kjørt i denne økten.</p>
@@ -165,6 +166,7 @@ let billingSetup=null;
 let membershipPeopleData=[];
 
 const syncResult=document.getElementById("syncResult");
+const backgroundSyncStatus=document.getElementById("backgroundSyncStatus");
 const invoiceOverview=document.getElementById("invoiceOverview");
 const invoiceRows=document.getElementById("invoiceRows");
 const testInvoiceForm=document.getElementById("testInvoiceForm");
@@ -304,6 +306,7 @@ invoiceRows.addEventListener("click",async ev=>{
         `Utsendelse: ${data.dispatchMethod}.`
       );
       await syncInvoices();
+    await loadBackgroundSyncStatus();
       return;
     }
 
@@ -619,6 +622,54 @@ membershipBillingForm.addEventListener("submit",async ev=>{
   }
 });
 
+
+async function loadBackgroundSyncStatus(){
+  try{
+    const {data,error}=await sb
+      .from("integration_sync_status")
+      .select("last_success_at,last_failed_at,last_status,last_error,summary_json")
+      .eq("integration","fiken")
+      .maybeSingle();
+
+    if(error){
+      backgroundSyncStatus.textContent =
+        "Bakgrunnssynkronisering: status ikke tilgjengelig.";
+      return;
+    }
+
+    if(!data){
+      backgroundSyncStatus.textContent =
+        "Bakgrunnssynkronisering: ingen kjøring registrert ennå.";
+      return;
+    }
+
+    if(data.last_status==="success" && data.last_success_at){
+      const time = new Date(data.last_success_at).toLocaleString("nb-NO");
+      backgroundSyncStatus.textContent =
+        `Bakgrunnssynkronisering OK. Sist vellykket: ${time}.`;
+      return;
+    }
+
+    if(data.last_status==="failed"){
+      const time = data.last_failed_at
+        ? new Date(data.last_failed_at).toLocaleString("nb-NO")
+        : "ukjent tidspunkt";
+
+      backgroundSyncStatus.textContent =
+        `Bakgrunnssynkronisering feilet sist ${time}.`;
+      return;
+    }
+
+    backgroundSyncStatus.textContent =
+      "Bakgrunnssynkronisering kjører eller venter på første fullførte kjøring.";
+
+  }catch(err){
+    console.error(err);
+    backgroundSyncStatus.textContent =
+      "Bakgrunnssynkronisering: status ikke tilgjengelig.";
+  }
+}
+
 (async()=>{
   try{
     await requireSession();
@@ -628,7 +679,6 @@ membershipBillingForm.addEventListener("submit",async ev=>{
     await loadInvoiceSetup();
     await loadBillingSetup();
     await syncInvoices();
-    setInterval(syncInvoices, 15 * 60 * 1000);
   }catch(err){
     console.error(err);
     announce("Kunne ikke åpne Fiken-administrasjonen.");
