@@ -13,7 +13,7 @@
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
 <main>
 <h1>Fiken</h1>
-<p><small>Versjon v0.27</small></p>
+<p><small>Versjon v0.27.1</small></p>
 <p id="status" class="status" role="status" aria-live="polite">Fiken-administrasjonen er klar.</p>
 <p id="backgroundSyncStatus" role="status" aria-live="polite">Bakgrunnssynkronisering: laster status …</p>
 
@@ -27,6 +27,21 @@ Ubetalte fakturaer telles som ubetalte også etter forfall. «Forfalt» er en ek
 
 <div id="invoiceOverview" hidden>
 <h3>Fakturaoversikt</h3>
+
+<p>
+<label for="invoiceFilter">Vis</label><br>
+<select id="invoiceFilter">
+<option value="all">Alle fakturaer</option>
+<option value="unsettled" selected>Kun uoppgjorte</option>
+<option value="paid">Betalte</option>
+<option value="unpaid">Ubetalte, ikke forfalt</option>
+<option value="overdue">Forfalte</option>
+<option value="credited">Krediterte</option>
+</select>
+</p>
+
+<p id="invoiceFilterStatus" role="status" aria-live="polite"></p>
+
 <table>
 <caption>De siste fakturaene som er synkronisert</caption>
 <thead>
@@ -169,6 +184,8 @@ const syncResult=document.getElementById("syncResult");
 const backgroundSyncStatus=document.getElementById("backgroundSyncStatus");
 const invoiceOverview=document.getElementById("invoiceOverview");
 const invoiceRows=document.getElementById("invoiceRows");
+const invoiceFilter=document.getElementById("invoiceFilter");
+const invoiceFilterStatus=document.getElementById("invoiceFilterStatus");
 const testInvoiceForm=document.getElementById("testInvoiceForm");
 const setupResult=document.getElementById("setupResult");
 const personSelect=document.getElementById("personSelect");
@@ -229,22 +246,58 @@ function actionButtons(i,index){
   return buttons.join(" ");
 }
 
-function renderInvoices(rows){
-  latestInvoices=rows||[];
-  invoiceRows.innerHTML=latestInvoices.map((i,index)=>`
-    <tr>
-      <td>${esc(i.fiken_invoice_number||i.fiken_invoice_id||"")}</td>
-      <td>${esc(rowCustomer(i))}${i.person_id?"":" – ikke koblet til person"}</td>
-      <td>${esc(i.issue_date||"")}</td>
-      <td>${esc(i.due_date||"")}</td>
-      <td>${esc(money(i.amount_gross_cents))}</td>
-      <td>${esc(paymentText(i))}</td>
-      <td>${esc(dueText(i))}</td>
-      <td>${actionButtons(i,index)}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="8">Ingen fakturaer.</td></tr>`;
-  invoiceOverview.hidden=false;
+function invoiceMatchesFilter(i, filter){
+  const isCredited = !!i.credited_at;
+  const isPaid = i.payment_status === "paid";
+  const isOverdue = i.payment_status !== "paid" && i.overdue === true;
+  const isUnpaidNotOverdue = i.payment_status !== "paid" && !i.overdue;
+
+  if(filter === "credited") return isCredited;
+  if(isCredited && filter !== "all") return false;
+
+  if(filter === "unsettled") return !isPaid;
+  if(filter === "paid") return isPaid;
+  if(filter === "unpaid") return isUnpaidNotOverdue;
+  if(filter === "overdue") return isOverdue;
+
+  return true;
 }
+
+function applyInvoiceFilter(){
+  const filter = invoiceFilter?.value || "all";
+  const visible = latestInvoices.filter(i=>invoiceMatchesFilter(i, filter));
+
+  invoiceRows.innerHTML = visible.map(i=>{
+    const originalIndex = latestInvoices.indexOf(i);
+
+    return `
+      <tr>
+        <td>${esc(i.fiken_invoice_number||i.fiken_invoice_id||"")}</td>
+        <td>${esc(rowCustomer(i))}${i.person_id?"":" – ikke koblet til person"}</td>
+        <td>${esc(i.issue_date||"")}</td>
+        <td>${esc(i.due_date||"")}</td>
+        <td>${esc(money(i.amount_gross_cents))}</td>
+        <td>${esc(paymentText(i))}</td>
+        <td>${esc(dueText(i))}</td>
+        <td>${actionButtons(i,originalIndex)}</td>
+      </tr>
+    `;
+  }).join("") || `<tr><td colspan="8">Ingen fakturaer i dette utvalget.</td></tr>`;
+
+  const label = invoiceFilter.options[invoiceFilter.selectedIndex]?.text || "valgt filter";
+  invoiceFilterStatus.textContent =
+    `Viser ${visible.length} av ${latestInvoices.length} fakturaer – ${label}.`;
+}
+
+function renderInvoices(rows){
+  latestInvoices = rows || [];
+  applyInvoiceFilter();
+  invoiceOverview.hidden = false;
+}
+
+invoiceFilter.addEventListener("change",()=>{
+  applyInvoiceFilter();
+});
 
 async function invokeAction(body){
   const {data,error}=await sb.functions.invoke("fiken-invoice-actions",{body});

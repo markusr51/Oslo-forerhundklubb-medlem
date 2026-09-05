@@ -1,0 +1,8 @@
+v0.27.1 – Fakturafilter
+
+- Ny «Vis»-meny i Fakturaoversikt.
+- Standard er «Kun uoppgjorte».
+- Valg: Alle fakturaer, Kun uoppgjorte, Betalte, Ubetalte ikke forfalt, Forfalte og Krediterte.
+- Forfalte fakturaer er fortsatt ubetalte, men kan filtreres separat.
+- Krediterte fakturaer har eget filter.
+- Statuslinjen viser antall synlige fakturaer av totalt antall.
