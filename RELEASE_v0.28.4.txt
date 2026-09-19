@@ -1,0 +1,9 @@
+Førerhundportalen v0.28.4 – GuideView select-kontroller
+
+- Alle valgkontroller på GuideView-siden bruker native HTML select etter samme mønster som arrangementsmodulen.
+- Ekvipasje/bruker er nedtrekksmeny.
+- Hund er nedtrekksmeny og fylles etter valgt ekvipasje.
+- Type økt, dag, måned, år, time, minutt og invitasjonsperson er native select.
+- Radioknapper er fjernet.
+- Egen lastestatus viser antall ekvipasjer/brukere som backend leverer.
+- app.js cache-buster oppdatert til 0284.

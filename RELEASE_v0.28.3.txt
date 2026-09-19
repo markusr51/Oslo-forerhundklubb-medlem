@@ -1,0 +1,7 @@
+Førerhundportalen v0.28.3 – GuideView live-test
+
+- GuideView-lenke lagt inn også i portalens eksisterende hardkodede hovedmenyer.
+- Ekvipasje og hund bruker nå tydelige radioknapper i stedet for nedtrekksmenyer.
+- Dato/tid beholder samme select/popup-prinsipp som arrangementssiden, med eksplisitte aria-labels.
+- Cacheversjon app.js oppdatert til 0283.
+- Opprett økt bruker valgt ekvipasje og valgt hund fra radiogruppene.

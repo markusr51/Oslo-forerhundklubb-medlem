@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 <script src="config.js"></script>
-<script src="app.js?v=0282"></script>
+<script src="app.js?v=0284"></script>
 </head>
 <body>
 <header><img src="logo.png" alt="Oslo Førerhundklubb"></header>
@@ -20,8 +20,11 @@
 <section id="createSection" hidden aria-labelledby="createHeading">
 <h2 id="createHeading">Opprett GuideView-økt</h2>
 <form id="createForm">
-<p><label for="handlerId">Ekvipasje / bruker</label><br><select id="handlerId" required></select></p>
-<p><label for="dogId">Hund</label><br><select id="dogId" required></select></p>
+<p><label for="handlerId">Ekvipasje / bruker</label><br>
+<select id="handlerId"><option value="">Laster ekvipasjer …</option></select></p>
+<p id="handlerStatus" class="status" role="status" aria-live="polite"></p>
+<p><label for="dogId">Hund</label><br>
+<select id="dogId"><option value="">Velg ekvipasje først</option></select></p>
 <p id="dogChoiceStatus" class="status" role="status" aria-live="polite"></p>
 <p><label for="sessionType">Type økt</label><br><select id="sessionType"><option value="follow_up">Oppfølging</option><option value="school_training">Skoletrening</option></select></p>
 <p><label for="title">Tittel</label><br><input id="title" type="text"></p>
@@ -92,20 +95,25 @@ function fillScheduleSelectors(){
 }
 function scheduledIso(){const d=new Date(Number(scheduleYear.value),Number(scheduleMonth.value)-1,Number(scheduleDay.value),Number(scheduleHour.value),Number(scheduleMinute.value),0,0); if(d.getFullYear()!=Number(scheduleYear.value)||d.getMonth()!=Number(scheduleMonth.value)-1||d.getDate()!=Number(scheduleDay.value)) throw new Error("Ugyldig planlagt dato."); return d.toISOString();}
 function refreshDogChoices(){
- const pid=handlerId.value; const ids=creationOptions.links.filter(x=>x.person_id===pid&&x.active!==false).map(x=>x.dog_id);
+ const pid=handlerId.value||"";
+ const ids=creationOptions.links.filter(x=>x.person_id===pid&&x.active!==false).map(x=>x.dog_id);
  const dogs=creationOptions.dogs.filter(d=>ids.includes(d.id));
- dogId.innerHTML=dogs.map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("")||'<option value="">Ingen hund knyttet til valgt bruker</option>';
- dogChoiceStatus.textContent=dogs.length===1?`Valgt hund: ${dogs[0].name}.`:dogs.length>1?`${dogs.length} hunder er knyttet til brukeren. Velg hund.`:"Ingen aktiv hundekobling ble funnet for brukeren.";
+ dogId.innerHTML='<option value="">Velg hund</option>'+dogs.map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+ if(dogs.length===1){dogId.value=dogs[0].id; dogChoiceStatus.textContent=`1 hund tilgjengelig: ${dogs[0].name}.`;}
+ else if(dogs.length>1){dogChoiceStatus.textContent=`${dogs.length} hunder tilgjengelig for valgt ekvipasje.`;}
+ else{dogChoiceStatus.textContent=pid?"Ingen aktiv hundekobling ble funnet for valgt ekvipasje.":"Velg ekvipasje først.";}
 }
 async function loadCreationOptions(){
  if(caps.isAdmin){
    creationOptions=await invoke("guideview-session-actions",{action:"options"});
-   handlerId.innerHTML=(creationOptions.people||[]).map(p=>`<option value="${esc(p.id)}">${esc(p.full_name||p.email||p.id)}</option>`).join("")||'<option value="">Ingen ekvipasjer tilgjengelig</option>';
-   refreshDogChoices();
+   const people=creationOptions.people||[];
+   handlerId.innerHTML='<option value="">Velg ekvipasje / bruker</option>'+people.map(p=>`<option value="${esc(p.id)}">${esc(p.full_name||p.email||p.id)}</option>`).join("");
+   handlerStatus.textContent=`${people.length} ekvipasjer/brukere lastet.`;
+   dogId.innerHTML='<option value="">Velg ekvipasje først</option>';
  } else {
-   handlerId.innerHTML=`<option value="${esc(me.person_id)}">Meg</option>`;
    const {data,error}=await sb.from("dogs").select("id,name,status").order("name"); if(error) throw error;
-   creationOptions={links:(data||[]).map(d=>({person_id:me.person_id,dog_id:d.id,active:true})),dogs:data||[],people:[{id:me.person_id,full_name:"Meg"}]}; refreshDogChoices();
+   creationOptions={links:(data||[]).map(d=>({person_id:me.person_id,dog_id:d.id,active:true})),dogs:data||[],people:[{id:me.person_id,full_name:"Meg"}]};
+   handlerId.innerHTML=`<option value="${esc(me.person_id)}">Meg</option>`; handlerId.value=me.person_id; handlerStatus.textContent="Din bruker er valgt."; refreshDogChoices();
  }
 }
 handlerId.addEventListener("change",refreshDogChoices);
@@ -135,7 +143,7 @@ async function loadSessions(){
  sessionList.innerHTML=sessions.map(s=>`<article data-session="${esc(s.id)}"><h3>${esc(s.title||"GuideView-økt")}</h3><dl><dt>Hund</dt><dd>${esc(names[s.dog_id]||"Ukjent")}</dd><dt>Type</dt><dd>${esc(typeText(s.session_type))}</dd><dt>Status</dt><dd>${esc(stateText(s.state))}</dd><dt>Tidspunkt</dt><dd>${esc(dt(s.scheduled_at))}</dd>${s.problem_statement?`<dt>Problemstilling</dt><dd>${esc(s.problem_statement)}</dd>`:""}</dl><div class="actions">${caps.isAdmin && !["completed","cancelled"].includes(s.state)?`<button type="button" data-action="invite">Inviter deltaker</button>`:""}${["planned","open"].includes(s.state)?`<button type="button" data-action="start">Start økt</button>`:""}${s.state==="active"?`<button type="button" data-action="connect">Koble til lyd/video</button><button type="button" data-action="complete">Avslutt økt</button>`:""}${!["completed","cancelled"].includes(s.state)?`<button type="button" data-action="cancel">Avlys økt</button>`:""}</div></article>`).join("");
 }
 async function refresh(){await Promise.all([loadSessions(),loadInvitations()]); announce("GuideView er klar.");}
-createForm.addEventListener("submit",async e=>{e.preventDefault(); announce("Oppretter økt …"); try{if(!handlerId.value) throw new Error("Velg bruker."); if(!dogId.value) throw new Error("Valgt bruker har ingen tilgjengelig hund."); const created=await invoke("guideview-session-actions",{action:"create",dogId:dogId.value,sessionType:sessionType.value,title:title.value.trim()||null,problemStatement:problemStatement.value.trim()||null,scheduledAt:scheduledIso(),durationMinutes:durationMinutes.value?Number(durationMinutes.value):null}); if(caps.isAdmin&&handlerId.value!==me.person_id){await invoke("guideview-invitations",{action:"invite",sessionId:created.session.id,personId:handlerId.value});} title.value=""; problemStatement.value=""; durationMinutes.value="30"; fillScheduleSelectors(); await refresh(); announce(caps.isAdmin&&handlerId.value!==me.person_id?"GuideView-økten er opprettet og brukeren er invitert.":"GuideView-økten er opprettet.");}catch(err){announce("Kunne ikke opprette økten: "+err.message);}});
+createForm.addEventListener("submit",async e=>{e.preventDefault(); announce("Oppretter økt …"); try{const handlerPersonId=handlerId.value; const selectedDog=dogId.value; if(!handlerPersonId) throw new Error("Velg bruker."); if(!selectedDog) throw new Error("Valgt bruker har ingen tilgjengelig hund."); const created=await invoke("guideview-session-actions",{action:"create",dogId:selectedDog,sessionType:sessionType.value,title:title.value.trim()||null,problemStatement:problemStatement.value.trim()||null,scheduledAt:scheduledIso(),durationMinutes:durationMinutes.value?Number(durationMinutes.value):null}); if(caps.isAdmin&&handlerPersonId!==me.person_id){await invoke("guideview-invitations",{action:"invite",sessionId:created.session.id,personId:handlerPersonId});} title.value=""; problemStatement.value=""; durationMinutes.value="30"; fillScheduleSelectors(); await refresh(); announce(caps.isAdmin&&handlerPersonId!==me.person_id?"GuideView-økten er opprettet og brukeren er invitert.":"GuideView-økten er opprettet.");}catch(err){announce("Kunne ikke opprette økten: "+err.message);}});
 sessionList.addEventListener("click",async e=>{const b=e.target.closest("button[data-action]"); if(!b)return; const article=b.closest("[data-session]"); const sessionId=article.dataset.session; const action=b.dataset.action; try{if(action==="connect"){await connectRoom(sessionId);return;} if(action==="invite"){inviteSessionId.value=sessionId; inviteSection.hidden=false; invitePersonId.focus(); return;} announce("Utfører handling …"); await invoke("guideview-session-actions",{action,sessionId}); await refresh(); announce(action==="start"?"Økten er startet.":action==="complete"?"Økten er avsluttet.":"Økten er avlyst.");}catch(err){announce("Handlingen feilet: "+err.message);}});
 invitationList.addEventListener("click",async e=>{const b=e.target.closest("button[data-response]"); if(!b)return; const a=b.closest("[data-invitation]"); try{announce("Svar på invitasjon sendes …"); await invoke("guideview-invitations",{action:"respond",invitationId:a.dataset.invitation,status:b.dataset.response}); await refresh(); announce(b.dataset.response==="accepted"?"Invitasjonen er godtatt. Du er nå deltaker i økten.":"Invitasjonen er avslått.");}catch(err){announce("Kunne ikke svare på invitasjonen: "+err.message);}});
 inviteForm.addEventListener("submit",async e=>{e.preventDefault(); try{announce("Sender invitasjon …"); await invoke("guideview-invitations",{action:"invite",sessionId:inviteSessionId.value,personId:invitePersonId.value}); inviteSection.hidden=true; announce("Invitasjonen er sendt.");}catch(err){announce("Kunne ikke sende invitasjonen: "+err.message);}});
