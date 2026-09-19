@@ -1,0 +1,7 @@
+Førerhundportalen v0.28.2 – GuideView live-test fix
+- GuideView-lenken cache-bustes via app.js?v=0282 på alle portalsider.
+- Opprett økt velger ekvipasje/bruker først og viser hund(er) knyttet til brukeren.
+- Administrator henter ekvipasje/hund-valg server-side via guideview-session-actions action=options, slik at RLS ikke gir tom hundeliste.
+- Valgt bruker inviteres automatisk når administrator oppretter økten.
+- Safari datetime-local er erstattet med separate VoiceOver-vennlige valg for dag, måned, år, time og minutt, etter samme prinsipp som arrangementssidene.
+- Eksisterende GuideView LiveKit- og invitasjonsflyt beholdes.
