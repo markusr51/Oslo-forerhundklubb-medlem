@@ -78,7 +78,16 @@ const typeText=v=>({follow_up:"Oppfølging",school_training:"Skoletrening"})[v]|
 function dt(v){return v?new Date(v).toLocaleString("nb-NO"):"Ikke angitt";}
 async function invoke(name,body){
  const {data,error}=await sb.functions.invoke(name,{body});
- if(error) throw error;
+ if(error){
+   let message=error.message||"Edge Function-feil.";
+   try{
+     if(error.context && typeof error.context.json==="function"){
+       const payload=await error.context.json();
+       if(payload?.error) message=payload.error;
+     }
+   }catch(_){}
+   throw new Error(message);
+ }
  if(data?.error) throw new Error(data.error);
  return data;
 }
@@ -95,13 +104,20 @@ function fillScheduleSelectors(){
 }
 function scheduledIso(){const d=new Date(Number(scheduleYear.value),Number(scheduleMonth.value)-1,Number(scheduleDay.value),Number(scheduleHour.value),Number(scheduleMinute.value),0,0); if(d.getFullYear()!=Number(scheduleYear.value)||d.getMonth()!=Number(scheduleMonth.value)-1||d.getDate()!=Number(scheduleDay.value)) throw new Error("Ugyldig planlagt dato."); return d.toISOString();}
 function refreshDogChoices(){
- const pid=handlerId.value||"";
- const ids=creationOptions.links.filter(x=>x.person_id===pid&&x.active!==false).map(x=>x.dog_id);
- const dogs=creationOptions.dogs.filter(d=>ids.includes(d.id));
+ const pid=String(handlerId.value||"");
+ if(!pid){
+   dogId.innerHTML='<option value="">Velg ekvipasje først</option>';
+   dogChoiceStatus.textContent="Velg ekvipasje først.";
+   return;
+ }
+ const ids=new Set((creationOptions.links||[])
+   .filter(x=>String(x.person_id)===pid && x.active!==false)
+   .map(x=>String(x.dog_id)));
+ const dogs=(creationOptions.dogs||[]).filter(d=>ids.has(String(d.id)));
  dogId.innerHTML='<option value="">Velg hund</option>'+dogs.map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
- if(dogs.length===1){dogId.value=dogs[0].id; dogChoiceStatus.textContent=`1 hund tilgjengelig: ${dogs[0].name}.`;}
+ if(dogs.length===1){dogId.value=String(dogs[0].id); dogChoiceStatus.textContent=`1 hund tilgjengelig: ${dogs[0].name}.`;}
  else if(dogs.length>1){dogChoiceStatus.textContent=`${dogs.length} hunder tilgjengelig for valgt ekvipasje.`;}
- else{dogChoiceStatus.textContent=pid?"Ingen aktiv hundekobling ble funnet for valgt ekvipasje.":"Velg ekvipasje først.";}
+ else{dogChoiceStatus.textContent="Ingen aktiv hundekobling ble funnet for valgt ekvipasje.";}
 }
 async function loadCreationOptions(){
  if(caps.isAdmin){
@@ -117,8 +133,9 @@ async function loadCreationOptions(){
  }
 }
 handlerId.addEventListener("change",refreshDogChoices);
+handlerId.addEventListener("input",refreshDogChoices);
 async function loadInvitations(){
- const {data,error}=await sb.from("guideview_session_invitations").select("id,session_id,status,created_at").eq("status","pending").order("created_at",{ascending:false});
+ const {data,error}=await sb.from("guideview_session_invitations").select("id,session_id,person_id,status,created_at").eq("person_id",me.person_id).eq("status","pending").order("created_at",{ascending:false});
  if(error) throw error;
  const rows=data||[];
  if(!rows.length){invitationList.innerHTML="<p>Ingen ventende invitasjoner.</p>";return;}
@@ -139,13 +156,15 @@ async function loadSessions(){
  if(!sessions.length){sessionList.innerHTML="<p>Ingen GuideView-økter ennå.</p>";return;}
  const dogIds=[...new Set(sessions.map(s=>s.dog_id).filter(Boolean))];
  let names={};
- if(dogIds.length){const r=await sb.from("dogs").select("id,name").in("id",dogIds); (r.data||[]).forEach(d=>names[d.id]=d.name);}
- sessionList.innerHTML=sessions.map(s=>`<article data-session="${esc(s.id)}"><h3>${esc(s.title||"GuideView-økt")}</h3><dl><dt>Hund</dt><dd>${esc(names[s.dog_id]||"Ukjent")}</dd><dt>Type</dt><dd>${esc(typeText(s.session_type))}</dd><dt>Status</dt><dd>${esc(stateText(s.state))}</dd><dt>Tidspunkt</dt><dd>${esc(dt(s.scheduled_at))}</dd>${s.problem_statement?`<dt>Problemstilling</dt><dd>${esc(s.problem_statement)}</dd>`:""}</dl><div class="actions">${caps.isAdmin && !["completed","cancelled"].includes(s.state)?`<button type="button" data-action="invite">Inviter deltaker</button>`:""}${["planned","open"].includes(s.state)?`<button type="button" data-action="start">Start økt</button>`:""}${s.state==="active"?`<button type="button" data-action="connect">Koble til lyd/video</button><button type="button" data-action="complete">Avslutt økt</button>`:""}${!["completed","cancelled"].includes(s.state)?`<button type="button" data-action="cancel">Avlys økt</button>`:""}</div></article>`).join("");
+ (creationOptions.dogs||[]).forEach(d=>names[d.id]=d.name);
+ const missing=dogIds.filter(id=>!names[id]);
+ if(missing.length){const r=await sb.from("dogs").select("id,name").in("id",missing); (r.data||[]).forEach(d=>names[d.id]=d.name);}
+ sessionList.innerHTML=sessions.map(s=>`<article data-session="${esc(s.id)}"><h3>${esc(s.title||"GuideView-økt")}</h3><dl><dt>Hund</dt><dd>${esc(names[s.dog_id]||"Ukjent")}</dd><dt>Type</dt><dd>${esc(typeText(s.session_type))}</dd><dt>Status</dt><dd>${esc(stateText(s.state))}</dd><dt>Tidspunkt</dt><dd>${esc(dt(s.scheduled_at))}</dd>${s.problem_statement?`<dt>Problemstilling</dt><dd>${esc(s.problem_statement)}</dd>`:""}</dl><div class="actions">${caps.isAdmin && !["completed","cancelled"].includes(s.state)?`<button type="button" data-action="invite">Inviter deltaker</button>`:""}${["planned","open"].includes(s.state)?`<button type="button" data-action="start">Start økt</button>`:""}${s.state==="active"?`<button type="button" data-action="connect">Koble til lyd/video</button><button type="button" data-action="complete">Avslutt økt</button>`:""}${!["completed","cancelled"].includes(s.state)?`<button type="button" data-action="cancel">Avlys økt</button>`:""}${caps.isAdmin&&["completed","cancelled"].includes(s.state)?`<button type="button" data-action="delete">Slett økt permanent</button>`:""}</div></article>`).join("");
 }
 async function refresh(){await Promise.all([loadSessions(),loadInvitations()]); announce("GuideView er klar.");}
 createForm.addEventListener("submit",async e=>{e.preventDefault(); announce("Oppretter økt …"); try{const handlerPersonId=handlerId.value; const selectedDog=dogId.value; if(!handlerPersonId) throw new Error("Velg bruker."); if(!selectedDog) throw new Error("Valgt bruker har ingen tilgjengelig hund."); const created=await invoke("guideview-session-actions",{action:"create",dogId:selectedDog,handlerPersonId,sessionType:sessionType.value,title:title.value.trim()||null,problemStatement:problemStatement.value.trim()||null,scheduledAt:scheduledIso(),durationMinutes:durationMinutes.value?Number(durationMinutes.value):null}); title.value=""; problemStatement.value=""; durationMinutes.value="30"; fillScheduleSelectors(); await refresh(); announce(caps.isAdmin&&handlerPersonId!==me.person_id?"GuideView-økten er opprettet og brukeren er invitert.":"GuideView-økten er opprettet.");}catch(err){announce("Kunne ikke opprette økten: "+err.message);}});
 sessionList.addEventListener("click",async e=>{const b=e.target.closest("button[data-action]"); if(!b)return; const article=b.closest("[data-session]"); const sessionId=article.dataset.session; const action=b.dataset.action; try{if(action==="connect"){await connectRoom(sessionId);return;} if(action==="invite"){inviteSessionId.value=sessionId; inviteSection.hidden=false; invitePersonId.focus(); return;} announce("Utfører handling …"); if(action==="delete"&&!confirm("Vil du slette denne GuideView-økten permanent?")) return;
-        await invoke("guideview-session-actions",{action,sessionId}); await refresh(); announce(action==="start"?"Økten er startet.":action==="complete"?"Økten er avsluttet.":"Økten er avlyst.");}catch(err){announce("Handlingen feilet: "+err.message);}});
+        await invoke("guideview-session-actions",{action,sessionId}); await refresh(); announce(action==="start"?"Økten er startet.":action==="complete"?"Økten er avsluttet.":action==="delete"?"Økten er slettet permanent.":"Økten er avlyst.");}catch(err){announce("Handlingen feilet: "+err.message);}});
 invitationList.addEventListener("click",async e=>{const b=e.target.closest("button[data-response]"); if(!b)return; const a=b.closest("[data-invitation]"); try{announce("Svar på invitasjon sendes …"); await invoke("guideview-invitations",{action:"respond",invitationId:a.dataset.invitation,status:b.dataset.response}); await refresh(); announce(b.dataset.response==="accepted"?"Invitasjonen er godtatt. Du er nå deltaker i økten.":"Invitasjonen er avslått.");}catch(err){announce("Kunne ikke svare på invitasjonen: "+err.message);}});
 inviteForm.addEventListener("submit",async e=>{e.preventDefault(); try{announce("Sender invitasjon …"); await invoke("guideview-invitations",{action:"invite",sessionId:inviteSessionId.value,personId:invitePersonId.value}); inviteSection.hidden=true; announce("Invitasjonen er sendt.");}catch(err){announce("Kunne ikke sende invitasjonen: "+err.message);}});
 cancelInviteButton.addEventListener("click",()=>{inviteSection.hidden=true;});
