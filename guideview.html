@@ -21,7 +21,7 @@
 <h2 id="createHeading">Opprett GuideView-økt</h2>
 <form id="createForm">
 <p><label for="handlerId">Ekvipasje / bruker</label><br>
-<select id="handlerId"><option value="">Laster ekvipasjer …</option></select></p>
+<select id="handlerId" onchange="refreshDogChoices()" oninput="refreshDogChoices()"><option value="">Laster ekvipasjer …</option></select></p>
 <p id="handlerStatus" class="status" role="status" aria-live="polite"></p>
 <p><label for="dogId">Hund</label><br>
 <select id="dogId"><option value="">Velg ekvipasje først</option></select></p>
@@ -132,16 +132,19 @@ async function loadCreationOptions(){
    handlerId.innerHTML=`<option value="${esc(me.person_id)}">Meg</option>`; handlerId.value=me.person_id; handlerStatus.textContent="Din bruker er valgt."; refreshDogChoices();
  }
 }
-handlerId.addEventListener("change",refreshDogChoices);
+handlerId.addEventListener("change",()=>{refreshDogChoices(); announce(`Ekvipasje valgt: ${handlerId.options[handlerId.selectedIndex]?.text||""}.`);});
 handlerId.addEventListener("input",refreshDogChoices);
 async function loadInvitations(){
- const {data,error}=await sb.from("guideview_session_invitations").select("id,session_id,person_id,status,created_at").eq("person_id",me.person_id).eq("status","pending").order("created_at",{ascending:false});
- if(error) throw error;
- const rows=data||[];
+ const payload=await invoke("guideview-invitations",{action:"list"});
+ const rows=payload.invitations||[];
  if(!rows.length){invitationList.innerHTML="<p>Ingen ventende invitasjoner.</p>";return;}
- const ids=[...new Set(rows.map(r=>r.session_id))]; let sessions={};
- if(ids.length){const r=await sb.from("guideview_sessions").select("id,title,session_type,state").in("id",ids); (r.data||[]).forEach(x=>sessions[x.id]=x);}
- invitationList.innerHTML=rows.map(i=>{const x=sessions[i.session_id]||{}; return `<article data-invitation="${esc(i.id)}"><h3>${esc(x.title||"GuideView-økt")}</h3><p>${esc(typeText(x.session_type))}. Status: ${esc(stateText(x.state))}.</p><div class="actions"><button type="button" data-response="accepted">Godta invitasjon</button><button type="button" data-response="declined">Avslå invitasjon</button></div></article>`}).join("");
+ const sessions={}; (payload.sessions||[]).forEach(x=>sessions[x.id]=x);
+ const dogs={}; (payload.dogs||[]).forEach(x=>dogs[x.id]=x);
+ invitationList.innerHTML=rows.map(i=>{
+   const x=sessions[i.session_id]||{};
+   const dog=dogs[x.dog_id];
+   return `<article data-invitation="${esc(i.id)}"><h3>${esc(x.title||"GuideView-økt")}</h3><p>Hund: ${esc(dog?.name||"Ukjent")}. ${esc(typeText(x.session_type))}. Status: ${esc(stateText(x.state))}. Tidspunkt: ${esc(dt(x.scheduled_at))}.</p><div class="actions"><button type="button" data-response="accepted">Godta invitasjon</button><button type="button" data-response="declined">Avslå invitasjon</button></div></article>`;
+ }).join("");
 }
 async function loadInvitePeople(){
  if(!caps.isAdmin) return;
