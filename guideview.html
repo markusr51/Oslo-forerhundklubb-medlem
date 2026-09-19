@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GuideView – Førerhundportalen</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<header><img src="logo.png" alt="Oslo Førerhundklubb"></header>
+<nav id="portalNav" aria-label="Hovedmeny"></nav>
+<main>
+<h1>GuideView</h1>
+<p id="status" class="status" role="status" aria-live="polite">Laster GuideView …</p>
+
+<section id="createSection" hidden aria-labelledby="createHeading">
+<h2 id="createHeading">Opprett GuideView-økt</h2>
+<form id="createForm">
+<p><label for="dogId">Hund</label><br><select id="dogId" required></select></p>
+<p><label for="sessionType">Type økt</label><br><select id="sessionType"><option value="follow_up">Oppfølging</option><option value="school_training">Skoletrening</option></select></p>
+<p><label for="title">Tittel</label><br><input id="title" type="text"></p>
+<p><label for="problemStatement">Hva ønsker dere hjelp med?</label><br><textarea id="problemStatement" rows="4"></textarea></p>
+<p><label for="scheduledAt">Planlagt tidspunkt</label><br><input id="scheduledAt" type="datetime-local"></p>
+<p><label for="durationMinutes">Varighet i minutter</label><br><input id="durationMinutes" type="number" min="1" step="1" value="30"></p>
+<button type="submit">Opprett økt</button>
+</form>
+</section>
+
+<section id="invitationsSection" aria-labelledby="invitationsHeading">
+<h2 id="invitationsHeading">Mine invitasjoner</h2>
+<div id="invitationList"><p>Laster invitasjoner …</p></div>
+</section>
+
+<section aria-labelledby="sessionsHeading">
+<h2 id="sessionsHeading">Mine GuideView-økter</h2>
+<div id="sessionList"><p>Laster økter …</p></div>
+</section>
+
+<section id="inviteSection" hidden aria-labelledby="inviteHeading">
+<h2 id="inviteHeading">Inviter deltaker</h2>
+<form id="inviteForm">
+<input id="inviteSessionId" type="hidden">
+<p><label for="invitePersonId">Person</label><br><select id="invitePersonId" required></select></p>
+<button type="submit">Send invitasjon</button>
+<button type="button" id="cancelInviteButton">Avbryt</button>
+</form>
+</section>
+
+<section id="roomSection" hidden aria-labelledby="roomHeading">
+<h2 id="roomHeading">Aktiv GuideView-tilkobling</h2>
+<p id="roomStatus" role="status" aria-live="polite">Ikke tilkoblet.</p>
+<div class="actions">
+<button type="button" id="microphoneButton">Slå på mikrofon</button>
+<button type="button" id="cameraButton">Slå på kamera</button>
+<button type="button" id="leaveButton">Forlat samtalen</button>
+</div>
+<h3>Min video</h3>
+<div id="localMedia"></div>
+<h3>Andre deltakere</h3>
+<div id="remoteMedia"><p>Ingen andre deltakere tilkoblet.</p></div>
+</section>
+</main>
+<script>
+let me=null, caps=null, room=null, activeSessionId=null;
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const stateText=v=>({planned:"Planlagt",open:"Åpen",active:"Aktiv",completed:"Avsluttet",cancelled:"Avlyst"})[v]||v||"Ukjent";
+const typeText=v=>({follow_up:"Oppfølging",school_training:"Skoletrening"})[v]||v||"";
+function dt(v){return v?new Date(v).toLocaleString("nb-NO"):"Ikke angitt";}
+async function invoke(name,body){
+ const {data,error}=await sb.functions.invoke(name,{body});
+ if(error) throw error;
+ if(data?.error) throw new Error(data.error);
+ return data;
+}
+async function loadDogs(){
+ const {data,error}=await sb.from("dogs").select("id,name,status").order("name");
+ if(error) throw error;
+ dogId.innerHTML=(data||[]).map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+ if(!data?.length) dogId.innerHTML='<option value="">Ingen tilgjengelige hunder</option>';
+}
+async function loadInvitations(){
+ const {data,error}=await sb.from("guideview_session_invitations").select("id,session_id,status,created_at").eq("status","pending").order("created_at",{ascending:false});
+ if(error) throw error;
+ const rows=data||[];
+ if(!rows.length){invitationList.innerHTML="<p>Ingen ventende invitasjoner.</p>";return;}
+ const ids=[...new Set(rows.map(r=>r.session_id))]; let sessions={};
+ if(ids.length){const r=await sb.from("guideview_sessions").select("id,title,session_type,state").in("id",ids); (r.data||[]).forEach(x=>sessions[x.id]=x);}
+ invitationList.innerHTML=rows.map(i=>{const x=sessions[i.session_id]||{}; return `<article data-invitation="${esc(i.id)}"><h3>${esc(x.title||"GuideView-økt")}</h3><p>${esc(typeText(x.session_type))}. Status: ${esc(stateText(x.state))}.</p><div class="actions"><button type="button" data-response="accepted">Godta invitasjon</button><button type="button" data-response="declined">Avslå invitasjon</button></div></article>`}).join("");
+}
+async function loadInvitePeople(){
+ if(!caps.isAdmin) return;
+ const {data,error}=await sb.from("persons").select("id,full_name,email").order("full_name");
+ if(error) throw error;
+ invitePersonId.innerHTML=(data||[]).filter(p=>p.id!==me.person_id).map(p=>`<option value="${esc(p.id)}">${esc(p.full_name||p.email||p.id)}</option>`).join("");
+}
+async function loadSessions(){
+ const {data,error}=await sb.from("guideview_sessions").select("id,dog_id,session_type,title,problem_statement,scheduled_at,duration_minutes,state,created_at").order("created_at",{ascending:false});
+ if(error) throw error;
+ const sessions=data||[];
+ if(!sessions.length){sessionList.innerHTML="<p>Ingen GuideView-økter ennå.</p>";return;}
+ const dogIds=[...new Set(sessions.map(s=>s.dog_id).filter(Boolean))];
+ let names={};
+ if(dogIds.length){const r=await sb.from("dogs").select("id,name").in("id",dogIds); (r.data||[]).forEach(d=>names[d.id]=d.name);}
+ sessionList.innerHTML=sessions.map(s=>`<article data-session="${esc(s.id)}"><h3>${esc(s.title||"GuideView-økt")}</h3><dl><dt>Hund</dt><dd>${esc(names[s.dog_id]||"Ukjent")}</dd><dt>Type</dt><dd>${esc(typeText(s.session_type))}</dd><dt>Status</dt><dd>${esc(stateText(s.state))}</dd><dt>Tidspunkt</dt><dd>${esc(dt(s.scheduled_at))}</dd>${s.problem_statement?`<dt>Problemstilling</dt><dd>${esc(s.problem_statement)}</dd>`:""}</dl><div class="actions">${caps.isAdmin && !["completed","cancelled"].includes(s.state)?`<button type="button" data-action="invite">Inviter deltaker</button>`:""}${["planned","open"].includes(s.state)?`<button type="button" data-action="start">Start økt</button>`:""}${s.state==="active"?`<button type="button" data-action="connect">Koble til lyd/video</button><button type="button" data-action="complete">Avslutt økt</button>`:""}${!["completed","cancelled"].includes(s.state)?`<button type="button" data-action="cancel">Avlys økt</button>`:""}</div></article>`).join("");
+}
+async function refresh(){await Promise.all([loadSessions(),loadInvitations()]); announce("GuideView er klar.");}
+createForm.addEventListener("submit",async e=>{e.preventDefault(); announce("Oppretter økt …"); try{await invoke("guideview-session-actions",{action:"create",dogId:dogId.value,sessionType:sessionType.value,title:title.value.trim()||null,problemStatement:problemStatement.value.trim()||null,scheduledAt:scheduledAt.value?new Date(scheduledAt.value).toISOString():null,durationMinutes:durationMinutes.value?Number(durationMinutes.value):null}); createForm.reset(); durationMinutes.value="30"; await refresh(); announce("GuideView-økten er opprettet.");}catch(err){announce("Kunne ikke opprette økten: "+err.message);}});
+sessionList.addEventListener("click",async e=>{const b=e.target.closest("button[data-action]"); if(!b)return; const article=b.closest("[data-session]"); const sessionId=article.dataset.session; const action=b.dataset.action; try{if(action==="connect"){await connectRoom(sessionId);return;} if(action==="invite"){inviteSessionId.value=sessionId; inviteSection.hidden=false; invitePersonId.focus(); return;} announce("Utfører handling …"); await invoke("guideview-session-actions",{action,sessionId}); await refresh(); announce(action==="start"?"Økten er startet.":action==="complete"?"Økten er avsluttet.":"Økten er avlyst.");}catch(err){announce("Handlingen feilet: "+err.message);}});
+invitationList.addEventListener("click",async e=>{const b=e.target.closest("button[data-response]"); if(!b)return; const a=b.closest("[data-invitation]"); try{announce("Svar på invitasjon sendes …"); await invoke("guideview-invitations",{action:"respond",invitationId:a.dataset.invitation,status:b.dataset.response}); await refresh(); announce(b.dataset.response==="accepted"?"Invitasjonen er godtatt. Du er nå deltaker i økten.":"Invitasjonen er avslått.");}catch(err){announce("Kunne ikke svare på invitasjonen: "+err.message);}});
+inviteForm.addEventListener("submit",async e=>{e.preventDefault(); try{announce("Sender invitasjon …"); await invoke("guideview-invitations",{action:"invite",sessionId:inviteSessionId.value,personId:invitePersonId.value}); inviteSection.hidden=true; announce("Invitasjonen er sendt.");}catch(err){announce("Kunne ikke sende invitasjonen: "+err.message);}});
+cancelInviteButton.addEventListener("click",()=>{inviteSection.hidden=true;});
+function attachTrack(track,participant){const el=track.attach(); el.dataset.participant=participant.identity; el.setAttribute("aria-label",`Medie fra ${participant.name||participant.identity}`); remoteMedia.querySelector("p")?.remove(); remoteMedia.appendChild(el);}
+async function connectRoom(sessionId){
+ announce("Kobler til GuideView …");
+ const auth=await invoke("guideview-livekit-token",{sessionId});
+ if(room) await leaveRoom();
+ room=new LivekitClient.Room({adaptiveStream:true,dynacast:true}); activeSessionId=sessionId;
+ room.on(LivekitClient.RoomEvent.TrackSubscribed,(track,pub,participant)=>attachTrack(track,participant));
+ room.on(LivekitClient.RoomEvent.TrackUnsubscribed,track=>track.detach().forEach(el=>el.remove()));
+ room.on(LivekitClient.RoomEvent.ParticipantConnected,p=>{roomStatus.textContent=`Tilkoblet. ${p.name||p.identity} kom inn i samtalen.`;});
+ room.on(LivekitClient.RoomEvent.ParticipantDisconnected,p=>{roomStatus.textContent=`Tilkoblet. ${p.name||p.identity} forlot samtalen.`;});
+ room.on(LivekitClient.RoomEvent.Disconnected,()=>{roomStatus.textContent="Frakoblet GuideView.";});
+ await room.connect(auth.url,auth.token);
+ roomSection.hidden=false; roomStatus.textContent=`Tilkoblet GuideView-rommet. Rolle: ${auth.sessionRole||"deltaker"}.`;
+ announce("Tilkoblet GuideView."); roomSection.scrollIntoView({behavior:"smooth",block:"start"});
+}
+async function leaveRoom(){if(room){await room.localParticipant.setMicrophoneEnabled(false).catch(()=>{}); await room.localParticipant.setCameraEnabled(false).catch(()=>{}); room.disconnect(); room=null;} activeSessionId=null; localMedia.innerHTML=""; remoteMedia.innerHTML="<p>Ingen andre deltakere tilkoblet.</p>"; roomSection.hidden=true;}
+microphoneButton.addEventListener("click",async()=>{if(!room)return; try{const on=!room.localParticipant.isMicrophoneEnabled; await room.localParticipant.setMicrophoneEnabled(on); microphoneButton.textContent=on?"Slå av mikrofon":"Slå på mikrofon"; roomStatus.textContent=on?"Mikrofonen er på.":"Mikrofonen er av.";}catch(e){roomStatus.textContent="Kunne ikke endre mikrofon: "+e.message;}});
+cameraButton.addEventListener("click",async()=>{if(!room)return; try{const on=!room.localParticipant.isCameraEnabled; await room.localParticipant.setCameraEnabled(on); cameraButton.textContent=on?"Slå av kamera":"Slå på kamera"; localMedia.innerHTML=""; if(on){for(const pub of room.localParticipant.videoTrackPublications.values()){if(pub.track){const el=pub.track.attach(); el.muted=true; el.setAttribute("aria-label","Min kameravideo"); localMedia.appendChild(el);}}} roomStatus.textContent=on?"Kameraet er på.":"Kameraet er av.";}catch(e){roomStatus.textContent="Kunne ikke endre kamera: "+e.message;}});
+leaveButton.addEventListener("click",async()=>{await leaveRoom(); announce("Du har forlatt GuideView-samtalen.");});
+window.addEventListener("beforeunload",()=>{if(room) room.disconnect();});
+(async()=>{const session=await requireSession(); if(!session)return; me=await getCurrentAppUser(); caps=await currentPortalCapabilities(me); await renderPortalNavigation({current:"guideview",me}); if(!caps.isGuideViewUser){announce("Du har ikke tilgang til GuideView."); createSection.hidden=true; sessionList.innerHTML="<p>Ingen tilgang.</p>"; return;} createSection.hidden=!(caps.isAdmin||caps.personRoles?.some(r=>["hjelpetrener","hjelpetreneraspirant","skoletrener"].includes(r))); try{await loadDogs(); await loadInvitePeople(); await refresh();}catch(e){announce("Kunne ikke laste GuideView: "+e.message);}})();
+</script>
+</body>
+</html>

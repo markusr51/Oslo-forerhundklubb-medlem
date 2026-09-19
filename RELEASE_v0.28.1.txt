@@ -1,0 +1,11 @@
+Førerhundportalen v0.28.1 – GuideView live-test
+
+Endringer:
+- GuideView-invitasjoner vises for innlogget mottaker.
+- Admin kan invitere en person til en økt fra GuideView-siden.
+- Når mottaker godtar invitasjonen, oppretter Edge Function automatisk deltaker i guideview_session_participants.
+- Ekvipasje blir handler, skoletrener blir trainer, hjelpetrener/hjelpetreneraspirant blir assistantTrainer.
+- Godtatt deltaker kan hente LiveKit-token og koble seg til samme rom når økten er aktiv.
+- Pakken inkluderer oppdatert guideview-invitations Edge Function under supabase/functions/guideview-invitations/index.ts.
+
+Før live-test må den medfølgende guideview-invitations-funksjonen deployes.

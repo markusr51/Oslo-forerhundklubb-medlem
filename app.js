@@ -96,11 +96,14 @@ async function currentPortalCapabilities(me = null) {
       appUser?.app_role === "system_admin",
     isSystemAdmin:
       appUser?.app_role === "system_admin",
-    isHelper: false
+    isHelper: false,
+    isGuideViewUser: false,
+    personRoles: []
   };
 
   if (caps.isAdmin) {
     caps.isHelper = true;
+    caps.isGuideViewUser = true;
     return caps;
   }
 
@@ -114,8 +117,12 @@ async function currentPortalCapabilities(me = null) {
       .eq("is_active", true);
 
     if (!error) {
-      caps.isHelper = (data || []).some(row =>
-        String(row.roles?.name || "").trim().toLowerCase() === "hjelpetrener"
+      caps.personRoles = (data || []).map(row =>
+        String(row.roles?.name || "").trim().toLowerCase()
+      );
+      caps.isHelper = caps.personRoles.includes("hjelpetrener");
+      caps.isGuideViewUser = caps.personRoles.some(role =>
+        ["ekvipasje", "hjelpetrener", "hjelpetreneraspirant", "skoletrener"].includes(role)
       );
     }
   } catch (error) {
@@ -152,6 +159,14 @@ async function renderPortalNavigation({
     ["helper-request.html", "Be om hjelp", "helper-request"]
   ];
 
+  if (caps.isGuideViewUser) {
+    memberItems.push([
+      "guideview.html",
+      "GuideView",
+      "guideview"
+    ]);
+  }
+
   if (caps.isHelper) {
     memberItems.push([
       "helper-settlement.html",
@@ -181,7 +196,8 @@ async function renderPortalNavigation({
     ["sms.html", "SMS", "sms"],
     ["email.html", "E-post", "email"],
     ["fiken.html?v=025", "Fiken", "fiken"],
-    ["communication-history.html", "Kommunikasjonshistorikk", "communication-history"]
+    ["communication-history.html", "Kommunikasjonshistorikk", "communication-history"],
+    ["guideview.html", "GuideView", "guideview"]
   ];
 
   if (caps.isSystemAdmin) {

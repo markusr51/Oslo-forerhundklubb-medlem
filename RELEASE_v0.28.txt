@@ -1,0 +1,17 @@
+Førerhundportalen v0.28 – GuideView grunnintegrasjon
+
+Nytt:
+- GuideView-side integrert i portalens hovedmeny.
+- Rolleoppdagelse for Ekvipasje, Hjelpetrener, Hjelpetreneraspirant og Skoletrener.
+- Administratorer får GuideView-tilgang.
+- Oppretting, start, avslutning og avlysning av GuideView-økter via Edge Function.
+- LiveKit-tilkobling via guideview-livekit-token.
+- Mikrofon, kamera og mottak av lyd/video fra andre deltakere.
+- VoiceOver-vennlige overskrifter, statusfelt, labels og vanlige HTML-kontroller.
+
+Bevisst ikke ferdig i denne grunnversjonen:
+- UI for invitasjon/aksept av deltakere.
+- Automatisk kobling av inviterte personer til guideview_session_participants.
+- Full administrasjon av hund/fagperson-tildelinger fra GuideView-siden.
+
+Eksisterende portalsider er ellers beholdt. app.js er endret for GuideView-roller og navigasjon.
