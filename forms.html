@@ -1,20 +1,115 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GuideView – Førerhundportalen</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js?v=0284"></script>
+</head>
 <body>
 <header><img src="logo.png" alt="Oslo Førerhundklubb"></header>
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
-<main><h1>Skjemaer</h1><p id="status" role="status" aria-live="polite"></p>
-<section><h2>Opprett skjema</h2><form id="newForm">
-<label for="title">Tittel</label><input id="title" required>
-<label for="description">Beskrivelse</label><textarea id="description"></textarea>
-<label for="responseMode">Svarmodus</label><select id="responseMode"><option value="identified">Navngitte svar</option><option value="anonymous">Anonyme svar</option></select>
-<label for="closesAt">Svarfrist</label><input id="closesAt" type="date">
-<button type="submit">Opprett skjema</button></form></section>
-<section><h2>Eksisterende skjemaer</h2><div id="formsList"></div></section></main>
+<main>
+<h1>Skjemaer</h1>
+<p id="status" role="status" aria-live="polite"></p>
+
+<section>
+<h2>Opprett skjema</h2>
+<form id="newForm">
+<label for="title">Tittel</label>
+<input id="title" name="title" required>
+
+<label for="description">Beskrivelse</label>
+<textarea id="description" name="description"></textarea>
+
+<label for="responseMode">Svarmodus</label>
+<select id="responseMode" name="responseMode">
+<option value="identified">Navngitte svar</option>
+<option value="anonymous">Anonyme svar</option>
+</select>
+
+<label for="closesAt">Svarfrist</label>
+<input id="closesAt" name="closesAt" type="date">
+
+<button type="submit">Opprett skjema</button>
+</form>
+</section>
+
+<section>
+<h2>Eksisterende skjemaer</h2>
+<div id="formsList"><p>Laster skjemaer …</p></div>
+</section>
+</main>
+
 <script>
-const sb=window.sb||window.supabaseClient;
-async function invoke(body){const {data,error}=await sb.functions.invoke("forms-actions",{body});if(error){let m=error.message;try{const x=await error.context?.json();if(x?.error)m=x.error}catch(_){}throw Error(m)}if(data?.error)throw Error(data.error);return data}
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-</script><script>
-(async()=>{const session=await requireSession();if(!session)return;const me=await getCurrentAppUser();await renderPortalNavigation({current:"forms",me});await load()})().catch(e=>status.textContent=e.message);
-async function load(){const d=await invoke({action:"admin_list"});formsList.innerHTML=d.forms.length?d.forms.map(f=>`<article><h3><a href="form-edit.html?id=${encodeURIComponent(f.id)}">${esc(f.title)}</a></h3><p>Status: ${esc(f.status)}. Svarmodus: ${f.response_mode==="anonymous"?"Anonym":"Navngitt"}.</p></article>`).join(""):"<p>Ingen skjemaer.</p>"}
-newForm.addEventListener("submit",async e=>{e.preventDefault();try{const d=await invoke({action:"create",title:title.value,description:description.value,responseMode:responseMode.value,closesAt:closesAt.value?new Date(closesAt.value+"T23:59:59").toISOString():null});location.href="form-edit.html?id="+encodeURIComponent(d.form.id)}catch(x){status.textContent=x.message}});
-</script></body></html>
+async function formsInvoke(body){
+  const {data,error}=await sb.functions.invoke("forms-actions",{body});
+  if(error){
+    let message=error.message||"Kunne ikke kontakte skjematjenesten.";
+    try{
+      if(error.context&&typeof error.context.json==="function"){
+        const payload=await error.context.json();
+        if(payload?.error) message=payload.error;
+      }
+    }catch(_){}
+    throw new Error(message);
+  }
+  if(data?.error) throw new Error(data.error);
+  return data;
+}
+function formsEsc(value){
+  return String(value??"").replace(/[&<>"']/g,ch=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[ch]));
+}
+async function loadForms(){
+  const data=await formsInvoke({action:"admin_list"});
+  formsList.innerHTML=(data.forms||[]).length
+    ? data.forms.map(form=>`<article>
+        <h3><a href="form-edit.html?id=${encodeURIComponent(form.id)}">${formsEsc(form.title)}</a></h3>
+        <p>Status: ${formsEsc(form.status)}. Svarmodus: ${form.response_mode==="anonymous"?"Anonym":"Navngitt"}.</p>
+      </article>`).join("")
+    : "<p>Ingen skjemaer er opprettet ennå.</p>";
+}
+newForm.addEventListener("submit",async event=>{
+  event.preventDefault();
+  status.textContent="Oppretter skjema …";
+  try{
+    const data=await formsInvoke({
+      action:"create",
+      title:title.value,
+      description:description.value,
+      responseMode:responseMode.value,
+      closesAt:closesAt.value ? new Date(closesAt.value+"T23:59:59").toISOString() : null
+    });
+    location.href="form-edit.html?id="+encodeURIComponent(data.form.id);
+  }catch(error){
+    status.textContent="Kunne ikke opprette skjema: "+error.message;
+  }
+});
+
+(async()=>{
+  const session=await requireSession();
+  if(!session) return;
+  const me=await getCurrentAppUser();
+  await renderPortalNavigation({current:"forms",me});
+  const caps=await currentPortalCapabilities(me);
+  if(!caps.isAdmin){
+    status.textContent="Du har ikke administratortilgang til Skjemaer.";
+    newForm.hidden=true;
+    formsList.innerHTML="<p>Ingen tilgang.</p>";
+    return;
+  }
+  try{
+    await loadForms();
+    status.textContent="Skjemaer er klar.";
+  }catch(error){
+    status.textContent="Kunne ikke laste Skjemaer: "+error.message;
+  }
+})();
+</script>
+</body>
+</html>
