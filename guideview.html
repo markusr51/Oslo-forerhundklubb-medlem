@@ -56,20 +56,14 @@
 </form>
 </section>
 
-<section id="roomSection" hidden aria-labelledby="roomHeading">
-<h2 id="roomHeading">Aktiv GuideView-tilkobling</h2>
-<p id="roomStatus" role="status" aria-live="polite">Ikke tilkoblet.</p>
-<div class="actions">
-<button type="button" id="microphoneButton">Slå på mikrofon</button>
-<button type="button" id="cameraButton">Slå på kamera</button>
-<button type="button" id="leaveButton">Forlat samtalen</button>
-</div>
-<h3>Min video</h3>
-<div id="localMedia"></div>
-<h3>Andre deltakere</h3>
-<div id="remoteMedia"><p>Ingen andre deltakere tilkoblet.</p></div>
-</section>
-</main>
+
+<section id="activeCallView" hidden aria-labelledby="activeCallHeading">
+<h2 id="activeCallHeading" tabindex="-1">Aktiv GuideView-økt</h2>
+<p id="activeCallDog"></p><p id="activeCallStatus" role="status" aria-live="polite">Kobler til …</p>
+<h3>Deltakere</h3><ul id="activeParticipants"><li>Venter på deltakere …</li></ul>
+<div class="actions"><button type="button" id="microphoneButton">Slå av mikrofon</button><button type="button" id="cameraButton">Slå av kamera</button><button type="button" id="fullscreenButton">Fullskjerm video</button><button type="button" id="leaveButton">Forlat samtalen</button></div>
+<div id="callVideoGrid"><div><h3>Min video</h3><div id="localMedia"></div></div><div><h3>Andre deltakere</h3><div id="remoteMedia"><p>Ingen andre deltakere tilkoblet.</p></div></div></div>
+</section></main>
 <script>
 let me=null, caps=null, room=null, activeSessionId=null;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -92,7 +86,7 @@ async function invoke(name,body){
  return data;
 }
 let creationOptions={links:[],dogs:[],people:[]};
-let realtimeChannel=null,refreshTimer=null,refreshBusy=false,refreshQueued=false;
+
 function fillScheduleSelectors(){
  const now=new Date(); const months=["Januar","Februar","Mars","April","Mai","Juni","Juli","August","September","Oktober","November","Desember"];
  scheduleDay.innerHTML=Array.from({length:31},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("");
@@ -165,13 +159,7 @@ async function loadSessions(){
  if(missing.length){const r=await sb.from("dogs").select("id,name").in("id",missing); (r.data||[]).forEach(d=>names[d.id]=d.name);}
  sessionList.innerHTML=sessions.map(s=>`<article data-session="${esc(s.id)}"><h3>${esc(s.title||"GuideView-økt")}</h3><dl><dt>Hund</dt><dd>${esc(names[s.dog_id]||"Ukjent")}</dd><dt>Type</dt><dd>${esc(typeText(s.session_type))}</dd><dt>Status</dt><dd>${esc(stateText(s.state))}</dd><dt>Tidspunkt</dt><dd>${esc(dt(s.scheduled_at))}</dd>${s.problem_statement?`<dt>Problemstilling</dt><dd>${esc(s.problem_statement)}</dd>`:""}</dl><div class="actions">${caps.isAdmin && !["completed","cancelled"].includes(s.state)?`<button type="button" data-action="invite">Inviter deltaker</button>`:""}${["planned","open"].includes(s.state)?`<button type="button" data-action="start">Start økt</button>`:""}${s.state==="active"?`<button type="button" data-action="connect">Koble til lyd/video</button><button type="button" data-action="complete">Avslutt økt</button>`:""}${!["completed","cancelled"].includes(s.state)?`<button type="button" data-action="cancel">Avlys økt</button>`:""}${caps.isAdmin&&["completed","cancelled"].includes(s.state)?`<button type="button" data-action="delete">Slett økt permanent</button>`:""}</div></article>`).join("");
 }
-async function refresh(){if(refreshBusy){refreshQueued=true;return;}refreshBusy=true;try{await Promise.all([loadSessions(),loadInvitations()]);}catch(e){announce("Kunne ikke oppdatere GuideView: "+e.message);}finally{refreshBusy=false;if(refreshQueued){refreshQueued=false;setTimeout(refresh,150);}}}
-function scheduleRefresh(){clearTimeout(window.__gvRefreshDebounce);window.__gvRefreshDebounce=setTimeout(refresh,250);}
-function startLiveUpdates(){
- try{if(realtimeChannel)sb.removeChannel(realtimeChannel);realtimeChannel=sb.channel(`guideview-${me.person_id}`).on("postgres_changes",{event:"*",schema:"public",table:"guideview_sessions"},scheduleRefresh).on("postgres_changes",{event:"*",schema:"public",table:"guideview_session_invitations"},scheduleRefresh).on("postgres_changes",{event:"*",schema:"public",table:"guideview_session_participants"},scheduleRefresh).subscribe(state=>console.log("[GV realtime]",state));}catch(e){console.warn("[GV realtime] setup failed",e);}
- if(refreshTimer)clearInterval(refreshTimer);refreshTimer=setInterval(()=>{if(document.visibilityState==="visible")refresh();},5000);
- document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")refresh();});window.addEventListener("focus",refresh);
-}
+async function refresh(){await Promise.all([loadSessions(),loadInvitations()]);}
 createForm.addEventListener("submit",async e=>{e.preventDefault(); announce("Oppretter økt …"); try{const handlerPersonId=handlerId.value; const selectedDog=dogId.value; if(!handlerPersonId) throw new Error("Velg bruker."); if(!selectedDog) throw new Error("Valgt bruker har ingen tilgjengelig hund."); const created=await invoke("guideview-session-actions",{action:"create",dogId:selectedDog,handlerPersonId,sessionType:sessionType.value,title:title.value.trim()||null,problemStatement:problemStatement.value.trim()||null,scheduledAt:scheduledIso(),durationMinutes:durationMinutes.value?Number(durationMinutes.value):null}); title.value=""; problemStatement.value=""; durationMinutes.value="30"; fillScheduleSelectors(); await refresh(); announce(caps.isAdmin&&handlerPersonId!==me.person_id?"GuideView-økten er opprettet og brukeren er invitert.":"GuideView-økten er opprettet.");}catch(err){announce("Kunne ikke opprette økten: "+err.message);}});
 sessionList.addEventListener("click",async e=>{const b=e.target.closest("button[data-action]"); if(!b)return; const article=b.closest("[data-session]"); const sessionId=article.dataset.session; const action=b.dataset.action; try{if(action==="connect"){await connectRoom(sessionId);return;} if(action==="invite"){inviteSessionId.value=sessionId; inviteSection.hidden=false; invitePersonId.focus(); return;} announce("Utfører handling …"); if(action==="delete"&&!confirm("Vil du slette denne GuideView-økten permanent?")) return;
         await invoke("guideview-session-actions",{action,sessionId}); await refresh(); announce(action==="start"?"Økten er startet.":action==="complete"?"Økten er avsluttet.":action==="delete"?"Økten er slettet permanent.":"Økten er avlyst.");}catch(err){announce("Handlingen feilet: "+err.message);}});
@@ -180,26 +168,32 @@ inviteForm.addEventListener("submit",async e=>{e.preventDefault(); try{announce(
 cancelInviteButton.addEventListener("click",()=>{inviteSection.hidden=true;});
 function attachTrack(track,participant){const el=track.attach(); el.dataset.participant=participant.identity; el.setAttribute("aria-label",`Medie fra ${participant.name||participant.identity}`); remoteMedia.querySelector("p")?.remove(); remoteMedia.appendChild(el);}
 async function connectRoom(sessionId){
- announce("Kobler til GuideView …");
- const auth=await invoke("guideview-livekit-token",{sessionId});
- if(room) await leaveRoom();
- room=new LivekitClient.Room({adaptiveStream:true,dynacast:true}); activeSessionId=sessionId;
- room.on(LivekitClient.RoomEvent.TrackSubscribed,(track,pub,participant)=>attachTrack(track,participant));
- room.on(LivekitClient.RoomEvent.TrackUnsubscribed,track=>track.detach().forEach(el=>el.remove()));
- room.on(LivekitClient.RoomEvent.ParticipantConnected,p=>{roomStatus.textContent=`Tilkoblet. ${p.name||p.identity} kom inn i samtalen.`;});
- room.on(LivekitClient.RoomEvent.ParticipantDisconnected,p=>{roomStatus.textContent=`Tilkoblet. ${p.name||p.identity} forlot samtalen.`;});
- room.on(LivekitClient.RoomEvent.Disconnected,()=>{roomStatus.textContent="Frakoblet GuideView.";});
- try{console.log("[GV livekit-client] connecting",{host:new URL(auth.url).host,protocol:new URL(auth.url).protocol});}catch(_){}
+ if(room)await leaveRoom(); activeSessionId=sessionId;
+ const article=sessionList.querySelector(`[data-session="${CSS.escape(sessionId)}"]`);
+ activeCallDog.textContent=`Hund: ${article?.querySelector("dd")?.textContent||"Ukjent"}`;
+ activeCallView.hidden=false;activeCallStatus.textContent="Kobler til GuideView …";activeCallHeading.focus();
+ const auth=await invoke("guideview-livekit-token",{sessionId});const LK=window.LivekitClient;room=new LK.Room();
+ const label=p=>p?.name||p?.identity||"Deltaker";
+ const renderParticipants=()=>{const ps=[room.localParticipant,...Array.from(room.remoteParticipants.values())];activeParticipants.innerHTML=ps.map(p=>`<li>${esc(label(p))}: ${p.isMicrophoneEnabled?"mikrofon på":"mikrofon av"}, ${p.isCameraEnabled?"kamera på":"kamera av"}</li>`).join("");};
+ const attach=(track,pub,p)=>{const el=track.attach();if(el.tagName==="AUDIO"){el.autoplay=true;el.setAttribute("aria-label",`Lyd fra ${label(p)}`);}else if(el.tagName==="VIDEO")el.setAttribute("aria-label",`Video fra ${label(p)}`);remoteMedia.appendChild(el);if(el.play)el.play().catch(()=>{});};
+ room.on(LK.RoomEvent.TrackSubscribed,attach);room.on(LK.RoomEvent.TrackUnsubscribed,t=>t.detach().forEach(e=>e.remove()));
+ room.on(LK.RoomEvent.ParticipantConnected,renderParticipants);room.on(LK.RoomEvent.ParticipantDisconnected,renderParticipants);room.on(LK.RoomEvent.TrackMuted,renderParticipants);room.on(LK.RoomEvent.TrackUnmuted,renderParticipants);
  await room.connect(auth.url,auth.token);
- roomSection.hidden=false; roomStatus.textContent=`Tilkoblet GuideView-rommet. Rolle: ${auth.sessionRole||"deltaker"}.`;
- announce("Tilkoblet GuideView."); roomSection.scrollIntoView({behavior:"smooth",block:"start"});
+ await room.localParticipant.setMicrophoneEnabled(true);
+ await room.localParticipant.setCameraEnabled(true);
+ localMedia.innerHTML="";for(const pub of room.localParticipant.videoTrackPublications.values()){if(pub.track){const el=pub.track.attach();el.muted=true;el.autoplay=true;el.setAttribute("aria-label","Min kameravideo");localMedia.appendChild(el);if(el.play)el.play().catch(()=>{});}}
+ remoteMedia.innerHTML="";for(const p of room.remoteParticipants.values())for(const pub of p.trackPublications.values())if(pub.track)attach(pub.track,pub,p);
+ if(!remoteMedia.children.length)remoteMedia.innerHTML="<p>Ingen andre deltakere tilkoblet.</p>";
+ microphoneButton.textContent="Slå av mikrofon";cameraButton.textContent="Slå av kamera";renderParticipants();
+ activeCallStatus.textContent=`Tilkoblet GuideView. ${room.remoteParticipants.size+1} deltakere. Mikrofon og kamera er på.`;announce("Tilkoblet GuideView. Mikrofon og kamera er på.");
 }
-async function leaveRoom(){if(room){await room.localParticipant.setMicrophoneEnabled(false).catch(()=>{}); await room.localParticipant.setCameraEnabled(false).catch(()=>{}); room.disconnect(); room=null;} activeSessionId=null; localMedia.innerHTML=""; remoteMedia.innerHTML="<p>Ingen andre deltakere tilkoblet.</p>"; roomSection.hidden=true;}
-microphoneButton.addEventListener("click",async()=>{if(!room)return; try{const on=!room.localParticipant.isMicrophoneEnabled; await room.localParticipant.setMicrophoneEnabled(on); microphoneButton.textContent=on?"Slå av mikrofon":"Slå på mikrofon"; roomStatus.textContent=on?"Mikrofonen er på.":"Mikrofonen er av.";}catch(e){roomStatus.textContent="Kunne ikke endre mikrofon: "+e.message;}});
-cameraButton.addEventListener("click",async()=>{if(!room)return; try{const on=!room.localParticipant.isCameraEnabled; await room.localParticipant.setCameraEnabled(on); cameraButton.textContent=on?"Slå av kamera":"Slå på kamera"; localMedia.innerHTML=""; if(on){for(const pub of room.localParticipant.videoTrackPublications.values()){if(pub.track){const el=pub.track.attach(); el.muted=true; el.setAttribute("aria-label","Min kameravideo"); localMedia.appendChild(el);}}} roomStatus.textContent=on?"Kameraet er på.":"Kameraet er av.";}catch(e){roomStatus.textContent="Kunne ikke endre kamera: "+e.message;}});
+async function leaveRoom(){if(room){await room.localParticipant.setMicrophoneEnabled(false).catch(()=>{});await room.localParticipant.setCameraEnabled(false).catch(()=>{});room.disconnect();room=null;}activeSessionId=null;localMedia.innerHTML="";remoteMedia.innerHTML="<p>Ingen andre deltakere tilkoblet.</p>";activeParticipants.innerHTML="<li>Ingen deltakere.</li>";activeCallView.hidden=true;}
+microphoneButton.addEventListener("click",async()=>{if(!room)return; try{const on=!room.localParticipant.isMicrophoneEnabled; await room.localParticipant.setMicrophoneEnabled(on); microphoneButton.textContent=on?"Slå av mikrofon":"Slå på mikrofon"; activeCallStatus.textContent=on?"Mikrofonen er på.":"Mikrofonen er av.";}catch(e){activeCallStatus.textContent="Kunne ikke endre mikrofon: "+e.message;}});
+cameraButton.addEventListener("click",async()=>{if(!room)return; try{const on=!room.localParticipant.isCameraEnabled; await room.localParticipant.setCameraEnabled(on); cameraButton.textContent=on?"Slå av kamera":"Slå på kamera"; localMedia.innerHTML=""; if(on){for(const pub of room.localParticipant.videoTrackPublications.values()){if(pub.track){const el=pub.track.attach(); el.muted=true; el.setAttribute("aria-label","Min kameravideo"); localMedia.appendChild(el);}}} activeCallStatus.textContent=on?"Kameraet er på.":"Kameraet er av.";}catch(e){activeCallStatus.textContent="Kunne ikke endre kamera: "+e.message;}});
+fullscreenButton.addEventListener("click",async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(callVideoGrid.requestFullscreen)await callVideoGrid.requestFullscreen();else activeCallStatus.textContent="Fullskjerm støttes ikke av denne nettleseren.";}catch(e){activeCallStatus.textContent="Kunne ikke åpne fullskjerm: "+e.message;}});
 leaveButton.addEventListener("click",async()=>{await leaveRoom(); announce("Du har forlatt GuideView-samtalen.");});
 window.addEventListener("beforeunload",()=>{if(room) room.disconnect();});
-(async()=>{const session=await requireSession(); if(!session)return; me=await getCurrentAppUser(); caps=await currentPortalCapabilities(me); await renderPortalNavigation({current:"guideview",me}); if(!caps.isGuideViewUser){announce("Du har ikke tilgang til GuideView."); createSection.hidden=true; sessionList.innerHTML="<p>Ingen tilgang.</p>"; return;} createSection.hidden=!(caps.isAdmin||caps.personRoles?.some(r=>["hjelpetrener","hjelpetreneraspirant","skoletrener"].includes(r))); try{fillScheduleSelectors(); await loadCreationOptions(); await loadInvitePeople(); await refresh(); startLiveUpdates(); announce("GuideView er klar. Endringer oppdateres automatisk.");}catch(e){announce("Kunne ikke laste GuideView: "+e.message);}})();
+(async()=>{const session=await requireSession(); if(!session)return; me=await getCurrentAppUser(); caps=await currentPortalCapabilities(me); await renderPortalNavigation({current:"guideview",me}); if(!caps.isGuideViewUser){announce("Du har ikke tilgang til GuideView."); createSection.hidden=true; sessionList.innerHTML="<p>Ingen tilgang.</p>"; return;} createSection.hidden=!(caps.isAdmin||caps.personRoles?.some(r=>["hjelpetrener","hjelpetreneraspirant","skoletrener"].includes(r))); try{fillScheduleSelectors(); await loadCreationOptions(); await loadInvitePeople(); await refresh(); announce("GuideView er klar.");}catch(e){announce("Kunne ikke laste GuideView: "+e.message);}})();
 </script>
 </body>
 </html>
