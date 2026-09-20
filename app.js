@@ -156,6 +156,7 @@ async function renderPortalNavigation({
     ["my-page.html", "Min side", "my-page"],
     ["library.html", "Dokumentbibliotek", "library"],
     ["my-expenses.html", "Mine utlegg", "my-expenses"],
+    ["my-forms.html", "Mine skjemaer", "my-forms"],
     ["helper-request.html", "Be om hjelp", "helper-request"]
   ];
 
@@ -185,6 +186,8 @@ async function renderPortalNavigation({
     ["members.html", "Medlemmer", "members"],
     ["events.html", "Arrangementer", "events"],
     ["event-templates.html", "Arrangementsmaler", "event-templates"],
+    ["forms.html", "Skjemaer", "forms"],
+    ["my-forms.html", "Mine skjemaer", "my-forms"],
     ["groups.html", "Grupper og utvalg", "groups"],
     ["roles.html", "Roller", "roles"],
     ["library.html", "Dokumentbibliotek", "library"],
