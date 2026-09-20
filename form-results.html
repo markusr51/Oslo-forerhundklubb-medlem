@@ -1,16 +1,4 @@
-<!doctype html>
-<html lang="no">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GuideView – Førerhundportalen</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
-<script src="config.js"></script>
-<script src="app.js?v=0284"></script>
-</head>
 <body>
 <header><img src="logo.png" alt="Oslo Førerhundklubb"></header>
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
-<main id="main-content"><h1>Skjemasvar</h1><p id="status" role="status"></p><div id="results"></div></main><script>const sb=window.sb||window.supabaseClient;async function invoke(body){const {data,error}=await sb.functions.invoke("forms-actions",{body});if(error){let m=error.message;try{const x=await error.context?.json();if(x?.error)m=x.error}catch(_){}throw Error(m)}if(data?.error)throw Error(data.error);return data}const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));</script><script>const id=new URLSearchParams(location.search).get("id");(async()=>{const s=await requireSession();if(!s)return;const me=await getCurrentAppUser();await renderPortalNavigation({current:"forms",me});const d=await invoke({action:"results",formId:id});const by={};d.answers.forEach(a=>(by[a.question_id]??=[]).push(a.answer_json));results.innerHTML=d.questions.map(q=>`<section><h2>${esc(q.question_text)}</h2><p>${(by[q.id]||[]).length} svar.</p><ul>${(by[q.id]||[]).map(v=>`<li>${esc(Array.isArray(v)?v.join(", "):v)}</li>`).join("")}</ul></section>`).join("")||"<p>Ingen svar ennå.</p>"})().catch(e=>status.textContent=e.message);</script></body></html>
+<main><h1>Skjemasvar</h1><p id="status" role="status"></p><div id="results"></div></main><script>const sb=window.sb||window.supabaseClient;async function invoke(body){const {data,error}=await sb.functions.invoke("forms-actions",{body});if(error){let m=error.message;try{const x=await error.context?.json();if(x?.error)m=x.error}catch(_){}throw Error(m)}if(data?.error)throw Error(data.error);return data}const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));</script><script>const id=new URLSearchParams(location.search).get("id");(async()=>{const s=await requireSession();if(!s)return;const me=await getCurrentAppUser();await renderPortalNavigation({current:"forms",me});const d=await invoke({action:"results",formId:id});const by={};d.answers.forEach(a=>(by[a.question_id]??=[]).push(a.answer_json));results.innerHTML=d.questions.map(q=>`<section><h2>${esc(q.question_text)}</h2><p>${(by[q.id]||[]).length} svar.</p><ul>${(by[q.id]||[]).map(v=>`<li>${esc(Array.isArray(v)?v.join(", "):v)}</li>`).join("")}</ul></section>`).join("")||"<p>Ingen svar ennå.</p>"})().catch(e=>status.textContent=e.message);</script></body></html>

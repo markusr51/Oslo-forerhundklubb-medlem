@@ -1,19 +1,7 @@
-<!doctype html>
-<html lang="no">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GuideView – Førerhundportalen</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
-<script src="config.js"></script>
-<script src="app.js?v=0284"></script>
-</head>
 <body>
 <header><img src="logo.png" alt="Oslo Førerhundklubb"></header>
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
-<main id="main-content"><h1 id="title">Skjema</h1><p id="description"></p><p id="status" role="status" aria-live="polite"></p><form id="answerForm"><div id="questions"></div><button type="submit">Send svar</button></form></main><script>const sb=window.sb||window.supabaseClient;async function invoke(body){const {data,error}=await sb.functions.invoke("forms-actions",{body});if(error){let m=error.message;try{const x=await error.context?.json();if(x?.error)m=x.error}catch(_){}throw Error(m)}if(data?.error)throw Error(data.error);return data}const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));</script><script>
+<main><h1 id="title">Skjema</h1><p id="description"></p><p id="status" role="status" aria-live="polite"></p><form id="answerForm"><div id="questions"></div><button type="submit">Send svar</button></form></main><script>const sb=window.sb||window.supabaseClient;async function invoke(body){const {data,error}=await sb.functions.invoke("forms-actions",{body});if(error){let m=error.message;try{const x=await error.context?.json();if(x?.error)m=x.error}catch(_){}throw Error(m)}if(data?.error)throw Error(data.error);return data}const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));</script><script>
 const id=new URLSearchParams(location.search).get("id");let data;
 (async()=>{const s=await requireSession();if(!s)return;const me=await getCurrentAppUser();await renderPortalNavigation({current:"my-forms",me});data=await invoke({action:"get_public",formId:id});title.textContent=data.form.title;description.textContent=data.form.description||"";const om={};data.options.forEach(o=>(om[o.question_id]??=[]).push(o));questions.innerHTML=data.questions.map(q=>renderQ(q,om[q.id]||[])).join("")})().catch(e=>status.textContent=e.message);
 function renderQ(q,os){const req=q.required?" required":"";let x="";if(q.question_type==="short_text")x=`<input id="q_${q.id}"${req}>`;else if(q.question_type==="long_text")x=`<textarea id="q_${q.id}"${req}></textarea>`;else if(q.question_type==="date")x=`<input id="q_${q.id}" type="date"${req}>`;else if(q.question_type==="yes_no")x=`<select id="q_${q.id}"${req}><option value="">Velg</option><option value="Ja">Ja</option><option value="Nei">Nei</option></select>`;else if(q.question_type==="single_choice")x=`<select id="q_${q.id}"${req}><option value="">Velg</option>${os.map(o=>`<option value="${esc(o.option_text)}">${esc(o.option_text)}</option>`).join("")}</select>`;else if(q.question_type==="multiple_choice")x=os.map(o=>`<label><input type="checkbox" name="q_${q.id}" value="${esc(o.option_text)}"> ${esc(o.option_text)}</label><br>`).join("");else if(q.question_type==="scale"){let opts="";for(let n=q.scale_min;n<=q.scale_max;n++)opts+=`<option value="${n}">${n}</option>`;x=`<select id="q_${q.id}"${req}><option value="">Velg</option>${opts}</select>`}return `<fieldset data-q="${q.id}" data-type="${q.question_type}"><legend>${esc(q.question_text)}${q.required?" (obligatorisk)":""}</legend>${q.help_text?`<p>${esc(q.help_text)}</p>`:""}${x}</fieldset>`}
