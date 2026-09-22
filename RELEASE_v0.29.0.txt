@@ -1,0 +1,11 @@
+Førerhundportalen v0.29.0 – Skjemaer
+- Egen skjemabygger i Supabase/portalen.
+- Native select-kontroller for spørsmålstype, ja/nei, skala og enkeltvalg – samme prinsipp som GuideView.
+- Spørsmål: kort/lang tekst, ett/flere valg, ja/nei, skala og dato.
+- Navngitte eller anonyme svar.
+- Mottakere velges blant personer i registeret.
+- Utkast, publisert og stengt.
+- Mine skjemaer for mottakere.
+- Resultatside for administrator.
+- Backend via forms-actions; nettleseren får ikke service_role.
+- SMS/e-postutsendelse kan kobles på eksisterende kommunikasjonsmodul i neste steg.

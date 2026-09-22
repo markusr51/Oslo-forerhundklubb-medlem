@@ -1,0 +1,1 @@
+Alle HTML-sider som refererer app.js bruker nå app.js?v=0293. Dette er kun cache-bump; app.js er den fungerende v0.29.2-versjonen med Skjemaer/Mine skjemaer.

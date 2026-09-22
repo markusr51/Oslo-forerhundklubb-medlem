@@ -1,0 +1,11 @@
+Førerhundportalen v0.28.14 – detaljert treveis media-routing
+
+- Ny guideview_media_routes-tabell (SQL-migrasjon følger med).
+- Ny guideview-routing-actions Edge Function.
+- Skoletrener/admin får dirigentpanel i aktiv samtale.
+- Hver retning mellom to deltakere har separat Lyd og Video-bryter.
+- Eksempel: Ekvipasje → Skoletrener kan ha lyd på/video på, mens samme kilde → Hjelpetrener kan være lyd av/video på.
+- Manglende rutingrad betyr PÅ/PÅ som standard.
+- Klientene henter kun rutingstatus hvert 1,5 sekund og endrer LiveKit track subscriptions; siden reloades ikke og øvrig DOM bygges ikke på nytt.
+- Vanlige brukere trenger ikke trykke på noe når skoletrener/admin endrer ruting.
+- Mikrofon og kamera publiseres fortsatt på som standard; ruting avgjør hvem som faktisk mottar sporene.

@@ -1,0 +1,7 @@
+Førerhundportalen v0.28.11
+- Retter GuideView participant session_role for ekvipasje fra 'handler' til 'user'.
+- Matcher database-constraint:
+  user, assistantTrainer, trainer, administrator.
+- portal_role beholdes 'ekvipasje' for ekvipasje.
+- Inneholder også v0.28.10-fiksene: server-side invitasjonsvisning med hund/øktdata,
+  robust invitasjonsaksept og Safari/VoiceOver-fallback for hundevalg.

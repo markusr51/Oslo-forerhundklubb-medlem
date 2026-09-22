@@ -1,0 +1,7 @@
+Førerhundportalen v0.28.10
+- Godta invitasjon oppretter deltaker med SELECT+INSERT i stedet for upsert/onConflict.
+- Invitasjonen settes først til accepted etter at deltakeropprettelsen har lykkes.
+- Alle kontrollerte feil i respond-steg logges med konkret steg.
+- Ny server-side action list returnerer brukerens ventende invitasjoner med økt- og hundedata.
+- Mobilen trenger derfor ikke RLS-lese guideview_sessions/dogs for å vise navn; «Ukjent» skal bort.
+- Ekvipasje-select har både direkte onchange/oninput og JS listeners som Safari/VoiceOver-fallback.

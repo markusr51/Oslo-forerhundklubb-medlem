@@ -1,0 +1,2 @@
+Førerhundportalen v0.28.12
+LiveKit sikker diagnostikk + Realtime og 5 sekunders polling-fallback.

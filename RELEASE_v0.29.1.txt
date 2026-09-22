@@ -1,0 +1,1 @@
+Retter portalskall/hovedmeny på alle fem skjemasider og bruker app.js?v=0290.

@@ -1,0 +1,7 @@
+Førerhundportalen v0.28.8
+- Godta/Avslå invitasjon skal bare vises for innlogget invitert person.
+- Admin er allerede deltaker og skal ikke kunne svare på ekvipasjens invitasjon.
+- Avlyste/avsluttede økter kan slettes permanent av admin/oppretter.
+- Sletting rydder invitasjoner og deltakere før selve økten.
+- Bedre Edge Function-feilmeldinger i frontend.
+- Strukturert logging i alle fire GuideView Edge Functions, uten secrets/tokens.

@@ -1,0 +1,7 @@
+Førerhundportalen v0.28.9
+- Fikser ReferenceError i guideview-invitations (body -> b).
+- Mine invitasjoner filtreres eksplisitt på innlogget person; admin ser ikke andres Godta/Avslå.
+- Hundelisten oppdateres på både input og change og sammenligner UUID-er robust.
+- Hundens navn i øktlisten bruker server-side options-data som fallback, så admin får ikke «Ukjent» pga RLS.
+- Avlyste/avsluttede økter får Slett økt permanent for admin.
+- Frontend forsøker å vise konkret Edge Function-feil fra response body.

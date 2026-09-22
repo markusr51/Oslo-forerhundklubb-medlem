@@ -1,0 +1,1 @@
+v0.28.13: auto-refresh removed; dedicated active call view; microphone and camera on by default; participant/media status; fullscreen video.

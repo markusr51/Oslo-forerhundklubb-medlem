@@ -1,0 +1,10 @@
+Førerhundportalen v0.28.7 – GuideView end-to-end test
+
+Endringer:
+- Opprett økt sender handlerPersonId i samme kall som dogId.
+- guideview-session-actions oppretter økt, oppretter oppretter som deltaker og oppretter invitasjon til valgt ekvipasje i samme serverflyt.
+- Valgt ekvipasje verifiseres som aktiv handler for valgt hund.
+- Ved feil under deltaker/invitasjon ryddes den nyopprettede testøkten opp igjen.
+- guideview-invitations godtar/avslår invitasjon og legger ved aksept personen inn som deltaker.
+- Nyeste options/diagnostikkversjon av session-actions beholdes.
+- De øvrige tre Edge Functions fra samlet backend-fiks er inkludert.
