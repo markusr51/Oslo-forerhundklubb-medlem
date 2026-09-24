@@ -147,6 +147,8 @@ async function currentPortalCapabilities(me = null) {
     console.error("Kunne ikke kontrollere personroller for navigasjonen:", error);
   }
 
+  const relationRoles=await sb.rpc("portal_gv_my_roles");
+  if(!relationRoles.error){caps.personRoles=[...new Set([...caps.personRoles,...(relationRoles.data||[])])];caps.isGuideViewUser=caps.isGuideViewUser||!!relationRoles.data?.length;}
   return caps;
 }
 

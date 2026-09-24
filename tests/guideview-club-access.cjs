@@ -7,7 +7,7 @@ async function request(name,body,scope,error=false){
  for(const m of ['insert','update','delete','upsert'])q[m]=v=>{writes.push({table,m,v});return q};
  const result=()=>({data:table==='app_users'?{person_id:'caller',app_role:'admin',active:true}:table==='guideview_sessions'?{id:'session',club_id:'other-club',created_by:'other',state:'planned'}:null,error:null});
  q.single=q.maybeSingle=async()=>result();q.then=(ok,bad)=>Promise.resolve(result()).then(ok,bad);return q}};
- const source=fs.readFileSync(path.join(__dirname,'../supabase/functions',name,'index.ts'),'utf8').replace(/^import .*\n/,'');
+ const source=fs.readFileSync(path.join(__dirname,'../supabase/functions',name,'index.ts'),'utf8').replace(/^import .*\n/gm,'');
  const ctx=vm.createContext({console:{log(){},warn(){},error(){}},Response,crypto,Date,Deno:{env:{get:()=>undefined},serve:f=>handler=f},createClient:()=>client});
  vm.runInContext(stripTypeScriptTypes(source),ctx);
  const r=await handler(new Request('https://example.test',{method:'POST',headers:{Authorization:'Bearer test'},body:JSON.stringify(body)}));

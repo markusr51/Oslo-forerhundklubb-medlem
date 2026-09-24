@@ -7,8 +7,8 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
-<script src="app.js?v=0300"></script>
-</head>
+<script src="app.js?v=0301"></script>
+<script src="date-controls.js?v=0301" defer></script></head>
 <body>
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
 
@@ -240,7 +240,7 @@ function renderMine(rows) {
                       </label><br>
                       <input
                         id="agreed-date-${row.id}"
-                        type="date"
+                        type="hidden" data-native-date="date"
                         data-agreed-date="${row.id}">
                     </p>
 
@@ -250,7 +250,7 @@ function renderMine(rows) {
                       </label><br>
                       <input
                         id="agreed-time-${row.id}"
-                        type="time"
+                        type="hidden" data-native-date="time"
                         data-agreed-time="${row.id}">
                     </p>
 
