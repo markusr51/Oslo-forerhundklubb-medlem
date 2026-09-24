@@ -7,8 +7,8 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
-<script src="app.js?v=0300"></script>
-</head>
+<script src="app.js?v=0301"></script>
+<script src="date-controls.js?v=0301" defer></script></head>
 <body>
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
 
@@ -49,12 +49,12 @@ Fast dato
 <div id="dateFields" hidden>
 <p>
 <label for="requestedDate">Dato</label><br>
-<input id="requestedDate" type="date">
+<input id="requestedDate" type="hidden" data-native-date="date">
 </p>
 
 <p>
 <label for="requestedTime">Klokkeslett, valgfritt</label><br>
-<input id="requestedTime" type="time">
+<input id="requestedTime" type="hidden" data-native-date="time">
 </p>
 </div>
 

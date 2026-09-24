@@ -69,13 +69,21 @@ Deno.serve(async req=>{
    console.log("[GV invitations] list:success",{invitations:invitations?.length||0,sessions:sessions.length,dogs:dogs.length});
    return json({invitations:invitations||[],sessions,dogs});
   }
-  if(action==="invite"){
+  if(action==="invite"||action==="options"){
    const sessionId=String(b.sessionId||""), target=String(b.personId||"");
-   const {data:s}=await admin.from("guideview_sessions").select("created_by").eq("id",sessionId).maybeSingle();
+   const {data:s}=await admin.from("guideview_sessions").select("created_by,dog_id,state").eq("id",sessionId).maybeSingle();
    if(!s) return json({error:"Økten finnes ikke."},404);
    const {data:scopeAdmin,error:scopeError}=await userClient.rpc('portal_gv_is_admin',{s:sessionId});
    if(scopeError)throw scopeError;
    if(s.created_by!==personId && scopeAdmin!==true) return json({error:"Ingen tilgang."},403);
+   if(["completed","cancelled"].includes(s.state))return json({error:"Økten er avsluttet."},400);
+   const today=new Date().toISOString().slice(0,10);
+   const {data:links,error:le}=await admin.from("dog_person_links").select("person_id").eq("dog_id",s.dog_id).eq("relation_type","handler").eq("active",true).or("valid_from.is.null,valid_from.lte."+today).or("valid_to.is.null,valid_to.gte."+today);
+   const {data:assignments,error:ae}=await admin.from("dog_professional_assignments").select("professional_person_id").eq("dog_id",s.dog_id).eq("active",true).or("valid_from.is.null,valid_from.lte."+today).or("valid_to.is.null,valid_to.gte."+today);
+   if(le||ae)throw le||ae;
+   const ids=[...new Set([...(links||[]).map((x:any)=>x.person_id),...(assignments||[]).map((x:any)=>x.professional_person_id)])];
+   if(action==="options"){if(!ids.length)return json({people:[]});const {data,error}=await admin.from("portal_person_identities").select("id,full_name").in("id",ids);if(error)throw error;return json({people:data||[]});}
+   if(!ids.includes(target))return json({error:"Personen har ingen aktiv tilknytning til hunden."},403);
    const {data,error}=await admin.from("guideview_session_invitations").upsert({
     session_id:sessionId,person_id:target,status:"pending",created_by:personId,responded_at:null
    },{onConflict:"session_id,person_id"}).select("*").single();
@@ -94,18 +102,19 @@ Deno.serve(async req=>{
 
    if(status==="accepted"){
     const {data:session,error:sessionError}=await admin.from("guideview_sessions")
-      .select("id,dog_id").eq("id",inv.session_id).maybeSingle();
+      .select("id,dog_id,state").eq("id",inv.session_id).maybeSingle();
     if(sessionError){ console.error("[GV invitations] respond:session",sessionError); return json({error:sessionError.message},400); }
     if(!session) return json({error:"Økten finnes ikke."},404);
+    if(["completed","cancelled"].includes(session.state))return json({error:"Økten er avsluttet."},400);
 
     const {data:handlerLink,error:handlerError}=await admin.from("dog_person_links")
       .select("id").eq("dog_id",session.dog_id).eq("person_id",personId)
-      .eq("active",true).eq("relation_type","handler").maybeSingle();
+      .eq("active",true).eq("relation_type","handler").or("valid_from.is.null,valid_from.lte."+new Date().toISOString().slice(0,10)).or("valid_to.is.null,valid_to.gte."+new Date().toISOString().slice(0,10)).limit(1).maybeSingle();
     if(handlerError){ console.error("[GV invitations] respond:handler-link",handlerError); return json({error:handlerError.message},400); }
 
     const {data:assignment,error:assignmentError}=await admin.from("dog_professional_assignments")
       .select("assignment_role").eq("dog_id",session.dog_id)
-      .eq("professional_person_id",personId).eq("active",true).maybeSingle();
+      .eq("professional_person_id",personId).eq("active",true).or("valid_from.is.null,valid_from.lte."+new Date().toISOString().slice(0,10)).or("valid_to.is.null,valid_to.gte."+new Date().toISOString().slice(0,10)).limit(1).maybeSingle();
     if(assignmentError){ console.error("[GV invitations] respond:assignment",assignmentError); return json({error:assignmentError.message},400); }
 
     let portalRole="ekvipasje";

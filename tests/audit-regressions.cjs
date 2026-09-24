@@ -1,0 +1,37 @@
+// Reuse isolated fixtures; never connects to production.
+const fs=require('node:fs'),path=require('node:path'),Module=require('node:module');
+const file=path.join(__dirname,'access-model.cjs');
+let source=fs.readFileSync(file,'utf8').replace('console.error(e.message,e.code,e.query,e.where)','console.error(e.stack,e.code,e.query,e.where)');
+source=source.replace('await db.close();',`
+await db.exec('reset role');
+const oslo='00000000-0000-4000-8000-000000000001';
+await db.query("insert into helper_rates(club_id,year,rate_type,amount) values($1,2026,'day_event',800),($1,2026,'mileage',4.5)",[oslo]);
+await as(1);
+await db.query("insert into helper_entries(id,person_id,activity_date,activity_type,rate_snapshot,status) values($1,$2,'2026-09-24','day_event',9000,'registered')",[id(95),id(1)]);
+assert.equal(Number((await db.query('select rate_snapshot from helper_entries where id=$1',[id(95)])).rows[0].rate_snapshot),800);
+await deny("update helper_entries set status='paid' where id=$1",[id(95)]);
+await deny("update helper_entries set rate_snapshot=9000 where id=$1",[id(95)]);
+await as(4);await db.query("select portal_set_settlement_status('helper_entries',$1,'approved')",[id(95)]);
+await as(1);await deny("update helper_entries set description='changed' where id=$1",[id(95)]);
+assert.equal((await db.query('delete from helper_entries where id=$1 returning id',[id(95)])).rows.length,0);
+await as(4);await db.query("select portal_set_settlement_status('helper_entries',$1,'paid')",[id(95)]);
+assert.equal((await db.query('select status from helper_entries where id=$1',[id(95)])).rows[0].status,'paid');
+await db.query("select portal_support_dog('link_helper',$1)",[JSON.stringify({dog_id:supportDog,person_id:id(5),club_id:oslo})]);
+await as(5);
+assert.equal((await db.query("select portal_gv_can_create($1,$2,$3,'follow_up') ok",[supportDog,id(60),id(1)])).rows[0].ok,true);
+assert.equal((await db.query("select portal_gv_can_create($1,$2,$3,'follow_up') ok",[supportDog,id(60),id(3)])).rows[0].ok,false);
+const options=(await db.query('select portal_gv_options($1) result',[id(60)])).rows[0].result;
+assert(options.people.some(p=>p.id===id(1)));assert(!options.people.some(p=>p.id===id(3)));
+await db.exec('reset role');
+await db.query("insert into portal_member_profiles(id,club_id,membership_status) values($1,$2,'active') on conflict do nothing",[id(1),oslo]);
+await db.query("update portal_member_profiles set membership_status='resigned' where id=$1 and club_id=$2",[id(1),oslo]);
+assert.equal((await db.query("select active from portal_club_memberships where person_id=$1 and club_id=$2 and role='member'",[id(1),oslo])).rows[0].active,false);
+assert.equal((await db.query("select active from portal_club_memberships where person_id=$1 and club_id=$2 and role='member'",[id(1),id(60)])).rows[0].active,true);
+await as(2);await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-portal-club':id(60)})]);
+const overview=await db.query('select * from admin_helper_year_overview(2026)');assert(overview.rows.some(r=>r.person_id===id(1)&&Number(r.total)>0));
+const dash=(await db.query('select admin_dashboard_data() d')).rows[0].d;
+assert(Array.isArray(dash.helper_entries));assert.equal(dash.counts.helper_entries_waiting,dash.helper_entries.length);
+assert((await db.query("select count(*) n from admin_notifications where club_id=$1 and notification_type in ('helper_activity','helper_expense')",[id(60)])).rows[0].n>0);
+console.log('PASS: legacy self-payment and rate overrides blocked; approved records locked; authorized approval/payment works; trainer access crosses club selection but not dog relationships; membership resignation is club-specific; unified dashboard and notifications include new ledger.');
+await db.close();`);
+const m=new Module(file,module);m.filename=file;m.paths=Module._nodeModulePaths(path.dirname(file));m._compile(source,file);

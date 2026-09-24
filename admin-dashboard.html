@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
-<script src="app.js?v=0300"></script>
+<script src="app.js?v=0301"></script>
 <script>
 (async()=>{
   try {
@@ -290,8 +290,8 @@ function renderHelper() {
       <td>${esc(money(honor(h)))}</td>
       <td>${esc(money(mileage(h)))}</td>
       <td>
-        <button type="button" data-approve-helper="${h.id}">Godkjenn</button>
-        <a href="helper-settlement.html">Åpne oppgjør</a>
+        <button type="button" data-approve-helper="${h.id}" data-source="${esc(h.source_table)}">Godkjenn</button>
+        <a href="clubs.html">Åpne oppgjør</a>
       </td>
     </tr>
   `).join("") || `<tr><td colspan="7">Ingen oppdrag venter på godkjenning.</td></tr>`;
@@ -300,10 +300,7 @@ function renderHelper() {
     btn.onclick = async ()=>{
       if (!confirm("Godkjenne denne hjelpetrenerregistreringen?")) return;
 
-      const {error} = await sb
-        .from("helper_entries")
-        .update({status:"approved"})
-        .eq("id",btn.dataset.approveHelper);
+      const {error} = await sb.rpc('portal_set_settlement_status',{source_table:btn.dataset.source,entry_id:btn.dataset.approveHelper,new_status:'approved'});
 
       if (error) return announce("Kunne ikke godkjenne registreringen: " + error.message);
 
@@ -324,8 +321,8 @@ function renderExpenses() {
       <td>${esc(money(x.amount))}</td>
       <td>${x.has_receipt ? "Ja" : "Nei"}</td>
       <td>
-        <button type="button" data-approve-expense="${x.id}">Godkjenn</button>
-        <a href="helper-settlement.html">Åpne utlegg</a>
+        <button type="button" data-approve-expense="${x.id}" data-source="${esc(x.source_table)}">Godkjenn</button>
+        <a href="clubs.html">Åpne utlegg</a>
       </td>
     </tr>
   `).join("") || `<tr><td colspan="6">Ingen utlegg venter på behandling.</td></tr>`;
@@ -334,10 +331,7 @@ function renderExpenses() {
     btn.onclick = async ()=>{
       if (!confirm("Godkjenne dette utlegget?")) return;
 
-      const {error} = await sb
-        .from("helper_expenses")
-        .update({status:"approved"})
-        .eq("id",btn.dataset.approveExpense);
+      const {error} = await sb.rpc('portal_set_settlement_status',{source_table:btn.dataset.source,entry_id:btn.dataset.approveExpense,new_status:'approved'});
 
       if (error) return announce("Kunne ikke godkjenne utlegget: " + error.message);
 

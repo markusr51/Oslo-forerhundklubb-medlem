@@ -1,3 +1,4 @@
+import {closeMediaRoom} from "../_shared/guideview-media.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -79,70 +80,8 @@ Deno.serve(async (req) => {
     // v0.28.5: server-side data for the admin creation form.
     // This avoids browser RLS hiding handlers/dogs while keeping the service key server-side.
     if (action === "options") {
-      console.log("[GV] options:start");
-      if (!adminOk) {
-        console.log("[GV] options:forbidden", { appRole });
-        return json({ error: "Kun administrator kan hente denne listen." }, 403);
-      }
-
-      const { data: handlerRoles, error: roleError } = await admin
-        .from("roles")
-        .select("id")
-        .in("name", ["Ekvipasje", "Ekstern ekvipasje"])
-        .eq("club_id",clubId);
-      console.log("[GV] roles:Ekvipasje", { roleId: handlerRoles?.[0]?.id || null, error: roleError?.message || null });
-      if (roleError) return json({ error: roleError.message }, 400);
-      if (!handlerRoles?.[0]?.id) return json({ error: "Rollen Ekvipasje finnes ikke." }, 500);
-
-      const { data: roleLinks, error: roleLinksError } = await admin
-        .from("person_roles")
-        .select("person_id")
-        .in("role_id", (handlerRoles||[]).map((r:any)=>r.id))
-        .eq("is_active", true);
-      console.log("[GV] person_roles", { count: roleLinks?.length ?? null, error: roleLinksError?.message || null });
-      if (roleLinksError) return json({ error: roleLinksError.message }, 400);
-
-      const {data:scopePeople,error:peopleScopeError}=await userClient.rpc('portal_gv_people',{c:clubId});
-      if(peopleScopeError)throw peopleScopeError;
-      const permittedPeople=new Set(scopePeople||[]);
-      const personIds = [...new Set((roleLinks || []).map((r: any) => r.person_id).filter((id:any)=>permittedPeople.has(id)))];
-      if (!personIds.length) return json({ people: [], links: [], dogs: [] });
-
-      const { data: people, error: peopleError } = await admin
-        .from("portal_person_identities")
-        .select("id,full_name,email")
-        .in("id", personIds)
-        .order("full_name");
-      console.log("[GV] persons", { count: people?.length ?? null, error: peopleError?.message || null });
-      if (peopleError) return json({ error: peopleError.message }, 400);
-
-      const { data: links, error: linksError } = await admin
-        .from("dog_person_links")
-        .select("dog_id,person_id,relation_type,active")
-        .in("person_id", personIds)
-        .eq("active", true);
-      console.log("[GV] dog_person_links", { count: links?.length ?? null, error: linksError?.message || null });
-      if (linksError) return json({ error: linksError.message }, 400);
-
-      const dogIds = [...new Set((links || []).map((l: any) => l.dog_id).filter(Boolean))];
-      let dogs: any[] = [];
-      if (dogIds.length) {
-        const { data: dogRows, error: dogsError } = await admin
-          .from("dogs")
-          .select("id,name,status")
-          .in("id", dogIds)
-          .order("name");
-        console.log("[GV] dogs", { count: dogRows?.length ?? null, error: dogsError?.message || null });
-        if (dogsError) return json({ error: dogsError.message }, 400);
-        dogs = dogRows || [];
-      }
-
-      console.log("[GV] options:success", { people: people?.length || 0, links: links?.length || 0, dogs: dogs.length });
-      return json({
-        people: people || [],
-        links: links || [],
-        dogs,
-      });
+      const {data,error}=await userClient.rpc('portal_gv_options',{c:clubId});
+      if(error)throw error; return json(data);
     }
 
     if (action === "create") {
@@ -150,18 +89,18 @@ Deno.serve(async (req) => {
       const handlerPersonId = String(body.handlerPersonId || "");
       const type = String(body.sessionType || "follow_up");
       if (!dogId) return json({ error: "Hund mangler." }, 400);
-      if (adminOk && !handlerPersonId) return json({ error: "Ekvipasje mangler." }, 400);
+      if (!handlerPersonId) return json({ error: "Ekvipasje mangler." }, 400);
 
       const { data: assignment } = await admin
         .from("dog_professional_assignments")
-        .select("assignment_role")
+        .select("assignment_role,club_id")
         .eq("dog_id", dogId)
         .eq("professional_person_id", personId)
-        .eq("club_id", clubId)
+        .in("assignment_role",type==="school_training"?["skoletrener"]:["hjelpetrener","hjelpetreneraspirant"])
         .or("valid_from.is.null,valid_from.lte."+new Date().toISOString().slice(0,10))
         .or("valid_to.is.null,valid_to.gte."+new Date().toISOString().slice(0,10))
         .eq("active", true)
-        .maybeSingle();
+        .limit(1).maybeSingle();
 
       const role = assignment?.assignment_role;
       const allowed =
@@ -178,7 +117,7 @@ Deno.serve(async (req) => {
       const { data: s, error } = await admin
         .from("guideview_sessions")
         .insert({
-          dog_id: dogId, club_id: clubId,
+          dog_id: dogId, club_id: assignment?.club_id||clubId,
           session_type: type,
           title: body.title || null,
           problem_statement: body.problemStatement || null,
@@ -194,7 +133,7 @@ Deno.serve(async (req) => {
 
       let portalRole = role;
       let sessionRole = role === "skoletrener" ? "trainer" : "assistantTrainer";
-      if (adminOk) {
+      if (adminOk && (!assignment || assignment.club_id===clubId)) {
         portalRole = appRole==="system_admin" ? "system_admin" : "admin";
         sessionRole = "administrator";
       }
@@ -214,7 +153,7 @@ Deno.serve(async (req) => {
       }
 
       let invitation = null;
-      if (adminOk && handlerPersonId && handlerPersonId !== personId) {
+      if (handlerPersonId && handlerPersonId !== personId) {
         // Verify that the selected handler is actually linked to this dog.
         const { data: handlerLink, error: handlerLinkError } = await admin
           .from("dog_person_links")
@@ -286,6 +225,9 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
+    if (['complete','cancel'].includes(action)&&['completed','cancelled'].includes(s.state)){
+      await closeMediaRoom(admin,s);return json({success:true});
+    }
     if (action === "complete") {
       if (s.state !== "active")
         return json({ error: "Bare aktiv økt kan avsluttes." }, 400);
@@ -294,6 +236,7 @@ Deno.serve(async (req) => {
         .update({ state: "completed", ended_at: new Date().toISOString() })
         .eq("id", sessionId);
       if (error) return json({ error: error.message }, 400);
+      await closeMediaRoom(admin,s);
       return json({ success: true });
     }
 
@@ -305,6 +248,7 @@ Deno.serve(async (req) => {
         .update({ state: "cancelled", ended_at: new Date().toISOString() })
         .eq("id", sessionId);
       if (error) return json({ error: error.message }, 400);
+      await closeMediaRoom(admin,s);
       return json({ success: true });
     }
 
@@ -315,6 +259,7 @@ Deno.serve(async (req) => {
       if (!["cancelled", "completed"].includes(s.state))
         return json({ error: "Økten må være avlyst eller avsluttet før den kan slettes." }, 400);
 
+      await closeMediaRoom(admin,s);
       const { error: invDeleteError } = await admin.from("guideview_session_invitations").delete().eq("session_id", sessionId);
       if (invDeleteError) {
         console.error("[GV session-actions] delete:invitations", invDeleteError);

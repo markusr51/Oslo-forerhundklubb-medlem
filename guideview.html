@@ -6,9 +6,9 @@
 <title>GuideView – Førerhundportalen</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.15.6/dist/livekit-client.umd.min.js"></script>
 <script src="config.js"></script>
-<script src="app.js?v=0300"></script>
+<script src="app.js?v=0301"></script>
 </head>
 <body>
 <header><img src="logo.png" alt="Oslo Førerhundklubb"></header>
@@ -99,9 +99,9 @@ function fillScheduleSelectors(){
  scheduleMonth.innerHTML=months.map((m,i)=>`<option value="${i+1}">${m}</option>`).join("");
  scheduleYear.innerHTML=Array.from({length:4},(_,i)=>{const y=now.getFullYear()+i;return `<option value="${y}">${y}</option>`}).join("");
  scheduleHour.innerHTML=Array.from({length:24},(_,i)=>`<option value="${i}">${String(i).padStart(2,"0")}</option>`).join("");
- scheduleMinute.innerHTML=[0,5,10,15,20,25,30,35,40,45,50,55].map(i=>`<option value="${i}">${String(i).padStart(2,"0")}</option>`).join("");
+ scheduleMinute.innerHTML=Array.from({length:60},(_,i)=>i).map(i=>`<option value="${i}">${String(i).padStart(2,"0")}</option>`).join("");
  scheduleDay.value=String(now.getDate()); scheduleMonth.value=String(now.getMonth()+1); scheduleYear.value=String(now.getFullYear());
- scheduleHour.value=String(now.getHours()); scheduleMinute.value=String(Math.ceil(now.getMinutes()/5)*5%60);
+ scheduleHour.value=String(now.getHours()); scheduleMinute.value=String(now.getMinutes());
 }
 function scheduledIso(){const d=new Date(Number(scheduleYear.value),Number(scheduleMonth.value)-1,Number(scheduleDay.value),Number(scheduleHour.value),Number(scheduleMinute.value),0,0); if(d.getFullYear()!=Number(scheduleYear.value)||d.getMonth()!=Number(scheduleMonth.value)-1||d.getDate()!=Number(scheduleDay.value)) throw new Error("Ugyldig planlagt dato."); return d.toISOString();}
 function refreshDogChoices(){
@@ -121,18 +121,14 @@ function refreshDogChoices(){
  else{dogChoiceStatus.textContent="Ingen aktiv hundekobling ble funnet for valgt ekvipasje.";}
 }
 async function loadCreationOptions(){
- if(caps.isAdmin){
-   creationOptions=await invoke("guideview-session-actions",{action:"options"});
-   const people=creationOptions.people||[];
-   handlerId.innerHTML='<option value="">Velg ekvipasje / bruker</option>'+people.map(p=>`<option value="${esc(p.id)}">${esc(p.full_name||p.email||p.id)}</option>`).join("");
-   handlerStatus.textContent=`${people.length} ekvipasjer/brukere lastet.`;
-   dogId.innerHTML='<option value="">Velg ekvipasje først</option>';
- } else {
-   const {data,error}=await sb.from("dogs").select("id,name,status").order("name"); if(error) throw error;
-   creationOptions={links:(data||[]).map(d=>({person_id:me.person_id,dog_id:d.id,active:true})),dogs:data||[],people:[{id:me.person_id,full_name:"Meg"}]};
-   handlerId.innerHTML=`<option value="${esc(me.person_id)}">Meg</option>`; handlerId.value=me.person_id; handlerStatus.textContent="Din bruker er valgt."; refreshDogChoices();
- }
+ creationOptions=await invoke("guideview-session-actions",{action:"options"});
+ const people=creationOptions.people||[];
+ handlerId.innerHTML='<option value="">Velg ekvipasje / bruker</option>'+people.map(p=>`<option value="${esc(p.id)}">${esc(p.full_name||p.id)}</option>`).join("");
+ handlerStatus.textContent=`${people.length} tilknyttede brukere tilgjengelig.`;
+ if(people.length===1)handlerId.value=people[0].id;
+ refreshDogChoices();
 }
+
 handlerId.addEventListener("change",()=>{refreshDogChoices(); announce(`Ekvipasje valgt: ${handlerId.options[handlerId.selectedIndex]?.text||""}.`);});
 handlerId.addEventListener("input",refreshDogChoices);
 async function loadInvitations(){
@@ -147,14 +143,13 @@ async function loadInvitations(){
    return `<article data-invitation="${esc(i.id)}"><h3>${esc(x.title||"GuideView-økt")}</h3><p>Hund: ${esc(dog?.name||"Ukjent")}. ${esc(typeText(x.session_type))}. Status: ${esc(stateText(x.state))}. Tidspunkt: ${esc(dt(x.scheduled_at))}.</p><div class="actions"><button type="button" data-response="accepted">Godta invitasjon</button><button type="button" data-response="declined">Avslå invitasjon</button></div></article>`;
  }).join("");
 }
-async function loadInvitePeople(){
- if(!caps.isAdmin) return;
- const {data,error}=await sb.from("persons").select("id,full_name,email").order("full_name");
- if(error) throw error;
- invitePersonId.innerHTML=(data||[]).filter(p=>p.id!==me.person_id).map(p=>`<option value="${esc(p.id)}">${esc(p.full_name||p.email||p.id)}</option>`).join("");
+async function loadInvitePeople(sessionId){
+ if(!sessionId)return;
+ const data=await invoke("guideview-invitations",{action:"options",sessionId});
+ invitePersonId.innerHTML=(data.people||[]).filter(p=>p.id!==me.person_id).map(p=>`<option value="${esc(p.id)}">${esc(p.full_name||p.id)}</option>`).join("");
 }
 async function loadSessions(){
- const {data,error}=await sb.from("guideview_sessions").select("id,dog_id,session_type,title,problem_statement,scheduled_at,duration_minutes,state,created_at").order("created_at",{ascending:false});
+ const {data,error}=await sb.from("guideview_sessions").select("id,dog_id,session_type,title,problem_statement,scheduled_at,duration_minutes,state,created_at,created_by").order("created_at",{ascending:false});
  if(error) throw error;
  const sessions=data||[];
  if(!sessions.length){sessionList.innerHTML="<p>Ingen GuideView-økter ennå.</p>";return;}
@@ -163,11 +158,11 @@ async function loadSessions(){
  (creationOptions.dogs||[]).forEach(d=>names[d.id]=d.name);
  const missing=dogIds.filter(id=>!names[id]);
  if(missing.length){const r=await sb.from("dogs").select("id,name").in("id",missing); (r.data||[]).forEach(d=>names[d.id]=d.name);}
- sessionList.innerHTML=sessions.map(s=>`<article data-session="${esc(s.id)}"><h3>${esc(s.title||"GuideView-økt")}</h3><dl><dt>Hund</dt><dd>${esc(names[s.dog_id]||"Ukjent")}</dd><dt>Type</dt><dd>${esc(typeText(s.session_type))}</dd><dt>Status</dt><dd>${esc(stateText(s.state))}</dd><dt>Tidspunkt</dt><dd>${esc(dt(s.scheduled_at))}</dd>${s.problem_statement?`<dt>Problemstilling</dt><dd>${esc(s.problem_statement)}</dd>`:""}</dl><div class="actions">${caps.isAdmin && !["completed","cancelled"].includes(s.state)?`<button type="button" data-action="invite">Inviter deltaker</button>`:""}${["planned","open"].includes(s.state)?`<button type="button" data-action="start">Start økt</button>`:""}${s.state==="active"?`<button type="button" data-action="connect">Koble til lyd/video</button><button type="button" data-action="complete">Avslutt økt</button>`:""}${!["completed","cancelled"].includes(s.state)?`<button type="button" data-action="cancel">Avlys økt</button>`:""}${caps.isAdmin&&["completed","cancelled"].includes(s.state)?`<button type="button" data-action="delete">Slett økt permanent</button>`:""}</div></article>`).join("");
+ sessionList.innerHTML=sessions.map(s=>`<article data-session="${esc(s.id)}"><h3>${esc(s.title||"GuideView-økt")}</h3><dl><dt>Hund</dt><dd>${esc(names[s.dog_id]||"Ukjent")}</dd><dt>Type</dt><dd>${esc(typeText(s.session_type))}</dd><dt>Status</dt><dd>${esc(stateText(s.state))}</dd><dt>Tidspunkt</dt><dd>${esc(dt(s.scheduled_at))}</dd>${s.problem_statement?`<dt>Problemstilling</dt><dd>${esc(s.problem_statement)}</dd>`:""}</dl><div class="actions">${(caps.isAdmin||s.created_by===me.person_id) && !["completed","cancelled"].includes(s.state)?`<button type="button" data-action="invite">Inviter deltaker</button>`:""}${["planned","open"].includes(s.state)?`<button type="button" data-action="start">Start økt</button>`:""}${s.state==="active"?`<button type="button" data-action="connect">Koble til lyd/video</button><button type="button" data-action="complete">Avslutt økt</button>`:""}${!["completed","cancelled"].includes(s.state)?`<button type="button" data-action="cancel">Avlys økt</button>`:""}${["completed","cancelled"].includes(s.state)?`<button type="button" data-action="complete">Kontroller at samtalen er stengt</button>`:""}${caps.isAdmin&&["completed","cancelled"].includes(s.state)?`<button type="button" data-action="delete">Slett økt permanent</button>`:""}</div></article>`).join("");
 }
 async function refresh(){await Promise.all([loadSessions(),loadInvitations()]);}
-createForm.addEventListener("submit",async e=>{e.preventDefault(); announce("Oppretter økt …"); try{const handlerPersonId=handlerId.value; const selectedDog=dogId.value; if(!handlerPersonId) throw new Error("Velg bruker."); if(!selectedDog) throw new Error("Valgt bruker har ingen tilgjengelig hund."); const created=await invoke("guideview-session-actions",{action:"create",dogId:selectedDog,handlerPersonId,sessionType:sessionType.value,title:title.value.trim()||null,problemStatement:problemStatement.value.trim()||null,scheduledAt:scheduledIso(),durationMinutes:durationMinutes.value?Number(durationMinutes.value):null}); title.value=""; problemStatement.value=""; durationMinutes.value="30"; fillScheduleSelectors(); await refresh(); announce(caps.isAdmin&&handlerPersonId!==me.person_id?"GuideView-økten er opprettet og brukeren er invitert.":"GuideView-økten er opprettet.");}catch(err){announce("Kunne ikke opprette økten: "+err.message);}});
-sessionList.addEventListener("click",async e=>{const b=e.target.closest("button[data-action]"); if(!b)return; const article=b.closest("[data-session]"); const sessionId=article.dataset.session; const action=b.dataset.action; try{if(action==="connect"){await connectRoom(sessionId);return;} if(action==="invite"){inviteSessionId.value=sessionId; inviteSection.hidden=false; invitePersonId.focus(); return;} announce("Utfører handling …"); if(action==="delete"&&!confirm("Vil du slette denne GuideView-økten permanent?")) return;
+createForm.addEventListener("submit",async e=>{e.preventDefault(); announce("Oppretter økt …"); try{const handlerPersonId=handlerId.value; const selectedDog=dogId.value; if(!handlerPersonId) throw new Error("Velg bruker."); if(!selectedDog) throw new Error("Valgt bruker har ingen tilgjengelig hund."); const created=await invoke("guideview-session-actions",{action:"create",dogId:selectedDog,handlerPersonId,sessionType:sessionType.value,title:title.value.trim()||null,problemStatement:problemStatement.value.trim()||null,scheduledAt:scheduledIso(),durationMinutes:durationMinutes.value?Number(durationMinutes.value):null}); title.value=""; problemStatement.value=""; durationMinutes.value="30"; fillScheduleSelectors(); await refresh(); announce(handlerPersonId!==me.person_id?"GuideView-økten er opprettet og brukeren er invitert.":"GuideView-økten er opprettet.");}catch(err){announce("Kunne ikke opprette økten: "+err.message);}});
+sessionList.addEventListener("click",async e=>{const b=e.target.closest("button[data-action]"); if(!b)return; const article=b.closest("[data-session]"); const sessionId=article.dataset.session; const action=b.dataset.action; try{if(action==="connect"){await connectRoom(sessionId);return;} if(action==="invite"){await loadInvitePeople(sessionId); inviteSessionId.value=sessionId; inviteSection.hidden=false; invitePersonId.focus(); return;} announce("Utfører handling …"); if(action==="delete"&&!confirm("Vil du slette denne GuideView-økten permanent?")) return;
         await invoke("guideview-session-actions",{action,sessionId}); await refresh(); announce(action==="start"?"Økten er startet.":action==="complete"?"Økten er avsluttet.":action==="delete"?"Økten er slettet permanent.":"Økten er avlyst.");}catch(err){announce("Handlingen feilet: "+err.message);}});
 invitationList.addEventListener("click",async e=>{const b=e.target.closest("button[data-response]"); if(!b)return; const a=b.closest("[data-invitation]"); try{announce("Svar på invitasjon sendes …"); await invoke("guideview-invitations",{action:"respond",invitationId:a.dataset.invitation,status:b.dataset.response}); await refresh(); announce(b.dataset.response==="accepted"?"Invitasjonen er godtatt. Du er nå deltaker i økten.":"Invitasjonen er avslått.");}catch(err){announce("Kunne ikke svare på invitasjonen: "+err.message);}});
 inviteForm.addEventListener("submit",async e=>{e.preventDefault(); try{announce("Sender invitasjon …"); await invoke("guideview-invitations",{action:"invite",sessionId:inviteSessionId.value,personId:invitePersonId.value}); inviteSection.hidden=true; announce("Invitasjonen er sendt.");}catch(err){announce("Kunne ikke sende invitasjonen: "+err.message);}});
@@ -180,10 +175,24 @@ function routeFor(routes,source,target){
 async function fetchRouting(sessionId){
  return await invoke("guideview-routing-actions",{action:"get",sessionId});
 }
+let routingInFlight=false, lastPublisherAck="", routingFailures=0;
 async function applyRouting(sessionId){
- if(!room)return;
+ if(!room||routingInFlight)return;
+ routingInFlight=true; const currentRoom=room;
  try{
-  const data=await fetchRouting(sessionId);routingSnapshot=data;
+  const data=await fetchRouting(sessionId);
+  if(room!==currentRoom)return;
+  if(["completed","cancelled"].includes(data.state)){await leaveRoom();announce("Økten er avsluttet. Lyd og video er stoppet.");return;}
+  routingSnapshot=data; routingFailures=0;
+  const localTracks=Array.from(room.localParticipant.trackPublications.values());
+  const permissions=(data.participants||[]).filter(p=>p.person_id!==data.currentPersonId).map(p=>{
+   const r=routeFor(data.routes,data.currentPersonId,p.person_id);
+   return {participantIdentity:p.person_id,allowAll:false,allowedTrackSids:localTracks.filter(t=>t.kind==="audio"?r.audio_enabled:t.kind==="video"?r.video_enabled:false).map(t=>t.trackSid)};
+  });
+  room.localParticipant.setTrackSubscriptionPermissions(false,permissions);
+  const ackKey=JSON.stringify([data.publisherVersion,room.localParticipant.sid,permissions]);
+  if(lastPublisherAck!==ackKey){await invoke("guideview-routing-actions",{action:"ack",sessionId,version:data.publisherVersion,participantSid:room.localParticipant.sid});lastPublisherAck=ackKey;}
+
   const mine=String(data.currentPersonId);
   for(const p of room.remoteParticipants.values()){
    const source=String(p.identity); const r=routeFor(data.routes,source,mine);
@@ -194,7 +203,10 @@ async function applyRouting(sessionId){
    }
   }
   if(data.director)renderRoutingPanel(data);else routingPanel.hidden=true;
- }catch(e){console.warn("[GV routing] apply",e);}
+ }catch(e){
+  routingFailures++;
+  if(room===currentRoom){room.localParticipant.setTrackSubscriptionPermissions(false,[]);lastPublisherAck="";activeCallStatus.textContent="Kontroll av lyd og video feilet. Prøver igjen …";if(routingFailures>=3){await leaveRoom();announce("Samtalen ble koblet fra fordi tilgangskontrollen ikke kunne oppdateres. Koble til igjen.");}}
+ }finally{routingInFlight=false;}
 }
 function renderRoutingPanel(data){
  routingPanel.hidden=false;
@@ -209,7 +221,17 @@ function renderRoutingPanel(data){
   <label><input type="checkbox" data-media="audio" ${r.audio_enabled?"checked":""}> Lyd</label>
   <label><input type="checkbox" data-media="video" ${r.video_enabled?"checked":""}> Video</label></fieldset>`;
  }
- routingMatrix.innerHTML=html||"<p>Minst to deltakere må være registrert i økten.</p>";
+ if(!routingMatrix.children.length)routingMatrix.textContent="";
+ const template=document.createElement("div");template.innerHTML=html;
+ const wanted=new Set(Array.from(template.children).map(el=>el.dataset.route));
+ for(const el of Array.from(routingMatrix.children))if(!wanted.has(el.dataset.route))el.remove();
+ for(const next of Array.from(template.children)){
+  const existing=Array.from(routingMatrix.children).find(el=>el.dataset.route===next.dataset.route);
+  if(!existing){routingMatrix.appendChild(next);continue;}
+  const [source,target]=existing.dataset.route.split("|");const r=routeFor(data.routes,source,target);
+  for(const cb of existing.querySelectorAll("input"))if(!cb.disabled)cb.checked=cb.dataset.media==="audio"?r.audio_enabled:r.video_enabled;
+ }
+ if(!wanted.size)routingMatrix.textContent="Minst to deltakere må være registrert i økten.";
 }
 routingMatrix.addEventListener("change",async e=>{
  const cb=e.target.closest('input[type="checkbox"][data-media]');if(!cb||!activeSessionId)return;
@@ -217,7 +239,7 @@ routingMatrix.addEventListener("change",async e=>{
  const body={action:"set",sessionId:activeSessionId,sourcePersonId,targetPersonId};
  if(cb.dataset.media==="audio")body.audioEnabled=cb.checked;else body.videoEnabled=cb.checked;
  cb.disabled=true;routingStatus.textContent="Oppdaterer ruting …";
- try{await invoke("guideview-routing-actions",body);routingStatus.textContent="Ruting oppdatert.";await applyRouting(activeSessionId);}
+ try{await invoke("guideview-routing-actions",body);routingStatus.textContent="Valget er lagret. Lyd og video oppdateres hos deltakerne.";await applyRouting(activeSessionId);}
  catch(err){cb.checked=!cb.checked;routingStatus.textContent="Kunne ikke endre ruting: "+err.message;}
  finally{cb.disabled=false;}
 });
@@ -227,30 +249,38 @@ function startRoutingLoop(sessionId){
  // Only routing state is polled; the page/DOM is not refreshed, preserving VoiceOver focus.
  routingTimer=setInterval(()=>applyRouting(sessionId),1500);
 }
-function stopRoutingLoop(){if(routingTimer){clearInterval(routingTimer);routingTimer=null;}routingPanel.hidden=true;routingMatrix.innerHTML="";}
+function stopRoutingLoop(){if(routingTimer){clearInterval(routingTimer);routingTimer=null;}routingPanel.hidden=true;routingMatrix.innerHTML="";delete routingMatrix.dataset.structure;lastPublisherAck="";}
 async function connectRoom(sessionId){
  if(room)await leaveRoom(); activeSessionId=sessionId;
  const article=sessionList.querySelector(`[data-session="${CSS.escape(sessionId)}"]`);
  activeCallDog.textContent=`Hund: ${article?.querySelector("dd")?.textContent||"Ukjent"}`;
  activeCallView.hidden=false;activeCallStatus.textContent="Kobler til GuideView …";activeCallHeading.focus();
+ try{
  const auth=await invoke("guideview-livekit-token",{sessionId});const LK=window.LivekitClient;room=new LK.Room();
  const label=p=>p?.name||p?.identity||"Deltaker";
- const renderParticipants=()=>{const ps=[room.localParticipant,...Array.from(room.remoteParticipants.values())];activeParticipants.innerHTML=ps.map(p=>`<li>${esc(label(p))}: ${p.isMicrophoneEnabled?"mikrofon på":"mikrofon av"}, ${p.isCameraEnabled?"kamera på":"kamera av"}</li>`).join("");};
+ const renderParticipants=()=>{if(!room)return;const ps=[room.localParticipant,...Array.from(room.remoteParticipants.values())];activeParticipants.innerHTML=ps.map(p=>`<li>${esc(label(p))}: ${p.isMicrophoneEnabled?"mikrofon på":"mikrofon av"}, ${p.isCameraEnabled?"kamera på":"kamera av"}</li>`).join("");};
  const attach=(track,pub,p)=>{const el=track.attach();if(el.tagName==="AUDIO"){el.autoplay=true;el.setAttribute("aria-label",`Lyd fra ${label(p)}`);}else if(el.tagName==="VIDEO")el.setAttribute("aria-label",`Video fra ${label(p)}`);remoteMedia.appendChild(el);if(el.play)el.play().catch(()=>{});};
  room.on(LK.RoomEvent.TrackSubscribed,attach);room.on(LK.RoomEvent.TrackUnsubscribed,t=>t.detach().forEach(e=>e.remove()));
  room.on(LK.RoomEvent.TrackPublished,()=>applyRouting(sessionId));room.on(LK.RoomEvent.ParticipantConnected,()=>{renderParticipants();applyRouting(sessionId);});room.on(LK.RoomEvent.ParticipantDisconnected,renderParticipants);room.on(LK.RoomEvent.TrackMuted,renderParticipants);room.on(LK.RoomEvent.TrackUnmuted,renderParticipants);
- await room.connect(auth.url,auth.token);
- await room.localParticipant.setMicrophoneEnabled(true);
- await room.localParticipant.setCameraEnabled(true);
+ room.on(LK.RoomEvent.LocalTrackPublished,()=>applyRouting(sessionId));
+ room.on(LK.RoomEvent.Disconnected,()=>{if(room){leaveRoom().then(()=>announce("Samtalen er koblet fra. Du kan koble til igjen dersom økten fortsatt er aktiv."));}});
+ room.on(LK.RoomEvent.Reconnecting,()=>{activeCallStatus.textContent="Forbindelsen ble brutt. Kobler til igjen …";});
+ room.on(LK.RoomEvent.Reconnected,()=>{lastPublisherAck="";applyRouting(sessionId);activeCallStatus.textContent="Forbindelsen er gjenopprettet.";});
+ await room.connect(auth.url,auth.token,{autoSubscribe:false});
+ room.localParticipant.setTrackSubscriptionPermissions(false,[]);
+ const mediaErrors=[];
+ try{await room.localParticipant.setMicrophoneEnabled(true);}catch(e){mediaErrors.push("Mikrofonen kunne ikke startes. Bruk Slå på mikrofon for å prøve igjen.");}
+ try{await room.localParticipant.setCameraEnabled(true);}catch(e){mediaErrors.push("Kameraet kunne ikke startes. Du kan fortsette med lyd og prøve kameraet igjen.");}
  localMedia.innerHTML="";for(const pub of room.localParticipant.videoTrackPublications.values()){if(pub.track){const el=pub.track.attach();el.muted=true;el.autoplay=true;el.setAttribute("aria-label","Min kameravideo");localMedia.appendChild(el);if(el.play)el.play().catch(()=>{});}}
  remoteMedia.innerHTML="";for(const p of room.remoteParticipants.values())for(const pub of p.trackPublications.values())if(pub.track)attach(pub.track,pub,p);
  if(!remoteMedia.children.length)remoteMedia.innerHTML="<p>Ingen andre deltakere tilkoblet.</p>";
- microphoneButton.textContent="Slå av mikrofon";cameraButton.textContent="Slå av kamera";renderParticipants();
- activeCallStatus.textContent=`Tilkoblet GuideView. ${room.remoteParticipants.size+1} deltakere. Mikrofon og kamera er på.`;startRoutingLoop(sessionId);announce("Tilkoblet GuideView. Mikrofon og kamera er på.");
+ microphoneButton.textContent=room.localParticipant.isMicrophoneEnabled?"Slå av mikrofon":"Slå på mikrofon";cameraButton.textContent=room.localParticipant.isCameraEnabled?"Slå av kamera":"Slå på kamera";renderParticipants();
+ activeCallStatus.textContent=`Tilkoblet GuideView. ${room.remoteParticipants.size+1} deltakere. ${mediaErrors.join(" ")}`;startRoutingLoop(sessionId);announce(activeCallStatus.textContent);
+ }catch(e){await leaveRoom();throw e;}
 }
-async function leaveRoom(){stopRoutingLoop();if(room){await room.localParticipant.setMicrophoneEnabled(false).catch(()=>{});await room.localParticipant.setCameraEnabled(false).catch(()=>{});room.disconnect();room=null;}activeSessionId=null;localMedia.innerHTML="";remoteMedia.innerHTML="<p>Ingen andre deltakere tilkoblet.</p>";activeParticipants.innerHTML="<li>Ingen deltakere.</li>";activeCallView.hidden=true;}
-microphoneButton.addEventListener("click",async()=>{if(!room)return; try{const on=!room.localParticipant.isMicrophoneEnabled; await room.localParticipant.setMicrophoneEnabled(on); microphoneButton.textContent=on?"Slå av mikrofon":"Slå på mikrofon"; activeCallStatus.textContent=on?"Mikrofonen er på.":"Mikrofonen er av.";}catch(e){activeCallStatus.textContent="Kunne ikke endre mikrofon: "+e.message;}});
-cameraButton.addEventListener("click",async()=>{if(!room)return; try{const on=!room.localParticipant.isCameraEnabled; await room.localParticipant.setCameraEnabled(on); cameraButton.textContent=on?"Slå av kamera":"Slå på kamera"; localMedia.innerHTML=""; if(on){for(const pub of room.localParticipant.videoTrackPublications.values()){if(pub.track){const el=pub.track.attach(); el.muted=true; el.setAttribute("aria-label","Min kameravideo"); localMedia.appendChild(el);}}} activeCallStatus.textContent=on?"Kameraet er på.":"Kameraet er av.";}catch(e){activeCallStatus.textContent="Kunne ikke endre kamera: "+e.message;}});
+async function leaveRoom(){stopRoutingLoop();const leaving=room;room=null;activeSessionId=null;if(leaving){leaving.localParticipant.setTrackSubscriptionPermissions(false,[]);await leaving.disconnect(true);}localMedia.innerHTML="";remoteMedia.innerHTML="<p>Ingen andre deltakere tilkoblet.</p>";activeParticipants.innerHTML="<li>Ingen deltakere.</li>";activeCallView.hidden=true;}
+microphoneButton.addEventListener("click",async()=>{if(!room)return; try{const on=!room.localParticipant.isMicrophoneEnabled; await room.localParticipant.setMicrophoneEnabled(on);await applyRouting(activeSessionId); microphoneButton.textContent=on?"Slå av mikrofon":"Slå på mikrofon"; activeCallStatus.textContent=on?"Mikrofonen er på.":"Mikrofonen er av.";}catch(e){activeCallStatus.textContent="Kunne ikke endre mikrofon: "+e.message;}});
+cameraButton.addEventListener("click",async()=>{if(!room)return; try{const on=!room.localParticipant.isCameraEnabled; await room.localParticipant.setCameraEnabled(on);await applyRouting(activeSessionId); cameraButton.textContent=on?"Slå av kamera":"Slå på kamera"; localMedia.innerHTML=""; if(on){for(const pub of room.localParticipant.videoTrackPublications.values()){if(pub.track){const el=pub.track.attach(); el.muted=true; el.setAttribute("aria-label","Min kameravideo"); localMedia.appendChild(el);}}} activeCallStatus.textContent=on?"Kameraet er på.":"Kameraet er av.";}catch(e){activeCallStatus.textContent="Kunne ikke endre kamera: "+e.message;}});
 fullscreenButton.addEventListener("click",async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(callVideoGrid.requestFullscreen)await callVideoGrid.requestFullscreen();else activeCallStatus.textContent="Fullskjerm støttes ikke av denne nettleseren.";}catch(e){activeCallStatus.textContent="Kunne ikke åpne fullskjerm: "+e.message;}});
 leaveButton.addEventListener("click",async()=>{await leaveRoom(); announce("Du har forlatt GuideView-samtalen.");});
 window.addEventListener("beforeunload",()=>{if(room) room.disconnect();});

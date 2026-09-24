@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
-<script src="app.js?v=0300"></script>
+<script src="app.js?v=0301"></script>
 </head>
 <body>
 <nav id="portalNav" aria-label="Hovedmeny"></nav>
@@ -34,7 +34,7 @@
 </section>
 
 <section aria-labelledby="summaryHeading">
-<h2 id="summaryHeading">Oppsummering</h2>
+<h2 id="summaryHeading">Registreringer fra denne siden</h2><p>Denne delsummen omfatter den eldre registreringsflyten. <a href="clubs.html">Åpne samlet oppgjør med alle gamle og nye registreringer</a>.</p>
 <dl id="summary"></dl>
 </section>
 
@@ -392,20 +392,7 @@ function renderEntries(){
   });
 }
 
-async function editEntry(id){
-  const e=entries.find(x=>x.id===id); if(!e)return;
-  const newStatus=prompt("Status: registered, approved eller paid",e.status);
-  if(!newStatus)return;
-  const newAmount=prompt("Honorarbeløp. For standardsats-oppdrag endres rate_snapshot.",honor(e));
-  if(newAmount===null)return;
-  const {error}=await sb.from("helper_entries").update({
-    status:newStatus.trim(),
-    rate_snapshot:e.activity_type==="other" ? e.rate_snapshot : Number(newAmount),
-    custom_amount:e.activity_type==="other" ? Number(newAmount) : e.custom_amount
-  }).eq("id",id);
-  if(error)return announce("Kunne ikke endre registreringen: "+error.message);
-  await loadData(); announce("Registreringen er oppdatert.");
-}
+async function editEntry(id){ location.href='clubs.html'; }
 async function deleteEntry(id){
   if(!confirm("Slette registreringen?"))return;
   const {error}=await sb.from("helper_entries").delete().eq("id",id);
@@ -445,11 +432,7 @@ async function downloadReceipt(id){
 }
 async function changeExpenseStatus(id){
   const e=expenses.find(x=>x.id===id); if(!e)return;
-  const v=prompt("Status: registered, approved, paid eller rejected",e.status);
-  if(!v)return;
-  const {error}=await sb.from("helper_expenses").update({status:v.trim()}).eq("id",id);
-  if(error)return announce("Kunne ikke endre status: "+error.message);
-  await loadData(); announce("Status er oppdatert.");
+  location.href='clubs.html'; announce("Status er oppdatert.");
 }
 
 activityType.onchange=()=>{

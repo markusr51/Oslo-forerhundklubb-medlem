@@ -24,7 +24,7 @@ function populateDateSelects(prefix, initialDate = null) {
   ).join("");
 
   year.innerHTML = "";
-  for (let y = currentYear - 1; y <= currentYear + 5; y++) {
+  for (let y = Math.min(currentYear - 1, now.getFullYear()); y <= Math.max(currentYear + 5, now.getFullYear()); y++) {
     year.insertAdjacentHTML("beforeend", `<option value="${y}">${y}</option>`);
   }
 
@@ -42,7 +42,7 @@ function populateTimeSelects(prefix, allowNone = false, initialHour = 18, initia
     hour.insertAdjacentHTML("beforeend", `<option value="${pad2(h)}">${pad2(h)}</option>`);
   }
 
-  minute.innerHTML = [0,15,30,45]
+  minute.innerHTML = Array.from({length:60},(_,n)=>n)
     .map(m => `<option value="${pad2(m)}">${pad2(m)}</option>`)
     .join("");
 
@@ -80,7 +80,9 @@ function setDateSelects(prefix, isoDate) {
   const [y,m,d] = isoDate.split("-").map(Number);
   document.getElementById(prefix + "Day").value = d;
   document.getElementById(prefix + "Month").value = m;
-  document.getElementById(prefix + "Year").value = y;
+  const yearSelect=document.getElementById(prefix + "Year");
+  if(!Array.from(yearSelect.options).some(o=>o.value===String(y)))yearSelect.add(new Option(String(y),String(y)));
+  yearSelect.value = y;
 }
 
 function setTimeSelects(prefix, timeValue, allowNone = false) {
@@ -90,7 +92,7 @@ function setTimeSelects(prefix, timeValue, allowNone = false) {
   }
   const [h,m] = timeValue.split(":");
   document.getElementById(prefix + "Hour").value = h;
-  document.getElementById(prefix + "Minute").value = ["00","15","30","45"].includes(m) ? m : "00";
+  document.getElementById(prefix + "Minute").value = m;
 }
 
 function norwegianDate(isoDate) {

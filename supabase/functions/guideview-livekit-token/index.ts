@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
     const at=new AccessToken(LIVEKIT_API_KEY,LIVEKIT_API_SECRET,{
       identity:String(profile.person_id),
       name:user.email || String(profile.person_id),
-      ttl:"20m",
+      ttl:"2m",
       metadata:JSON.stringify({
         guideviewSessionId:sessionId,
         portalRole:participant.portal_role,
@@ -103,14 +103,14 @@ Deno.serve(async (req) => {
       }),
     });
 
-    // Første integrasjon: alle godkjente deltakere kan publisere og abonnere.
+    // Abonnement åpnes først etter synkronisering av publisistenes tilgangslister.
     // Portalrollen beholdes separat i metadata, inkludert hjelpetreneraspirant.
     at.addGrant({
       roomJoin:true,
       room:session.livekit_room,
       canPublish:true,
-      canSubscribe:true,
-      canPublishData:true,
+      canSubscribe:false,
+      canPublishData:false,
     });
 
     const token=await at.toJwt();
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       room:session.livekit_room,
       portalRole:participant.portal_role,
       sessionRole:participant.session_role,
-      expiresIn:"20m",
+      expiresIn:"2m",
     });
   } catch (error) {
     console.error("[GV livekit-token]",error);
