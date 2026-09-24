@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GuideView – Førerhundportalen</title>
+<title>Rediger skjema – Førerhundportalen</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -26,19 +26,19 @@
 <section><h2>Mottakere</h2><p>Velg personer som skal få skjemaet.</p><div id="people"></div><button id="saveRecipients">Lagre mottakere</button></section>
 <section><h2>Svar</h2><p id="responseCount"></p><a id="resultsLink" href="#">Vis resultater</a></section></main>
 <script>
-const sb=window.sb||window.supabaseClient;
+const formsStatus=document.getElementById("status");
 async function invoke(body){const {data,error}=await sb.functions.invoke("forms-actions",{body});if(error){let m=error.message;try{const x=await error.context?.json();if(x?.error)m=x.error}catch(_){}throw Error(m)}if(data?.error)throw Error(data.error);return data}
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 </script><script>
 const id=new URLSearchParams(location.search).get("id");let data,peopleData=[];
-(async()=>{const s=await requireSession();if(!s)return;const me=await getCurrentAppUser();await renderPortalNavigation({current:"forms",me});await load()})().catch(e=>status.textContent=e.message);
+(async()=>{const s=await requireSession();if(!s)return;const me=await getCurrentAppUser();await renderPortalNavigation({current:"forms",me});await load()})().catch(e=>formsStatus.textContent=e.message);
 async function load(){data=await invoke({action:"get_admin",formId:id});peopleData=(await invoke({action:"people"})).people;formTitle.textContent=data.form.title;formMeta.textContent=`Status: ${data.form.status}. Svarmodus: ${data.form.response_mode==="anonymous"?"Anonym":"Navngitt"}.`;preview.href="form.html?id="+id;resultsLink.href="form-results.html?id="+id;
 const om={};data.options.forEach(o=>(om[o.question_id]??=[]).push(o.option_text));questions.innerHTML=data.questions.length?data.questions.map(q=>`<article><h3>${esc(q.question_text)}</h3><p>Type: ${esc(q.question_type)}${q.required?", obligatorisk":""}.</p>${om[q.id]?`<p>Valg: ${esc(om[q.id].join(", "))}</p>`:""}<button data-delete="${q.id}">Slett spørsmål</button></article>`).join(""):"<p>Ingen spørsmål ennå.</p>";
 const chosen=new Set(data.recipients.map(x=>x.person_id));people.innerHTML=peopleData.map(p=>`<label><input type="checkbox" value="${p.id}" ${chosen.has(p.id)?"checked":""}> ${esc(p.full_name)}${p.email?` – ${esc(p.email)}`:""}</label><br>`).join("");responseCount.textContent=`${data.responses.length} svar mottatt.`}
 questionType.addEventListener("change",()=>{choiceBox.hidden=!["single_choice","multiple_choice"].includes(questionType.value);scaleBox.hidden=questionType.value!=="scale"});
-questionForm.addEventListener("submit",async e=>{e.preventDefault();try{await invoke({action:"add_question",formId:id,questionText:questionText.value,questionType:questionType.value,helpText:helpText.value,required:required.checked,options:options.value.split(/\n/),scaleMin:scaleMin.value,scaleMax:scaleMax.value});questionForm.reset();choiceBox.hidden=true;scaleBox.hidden=true;await load()}catch(x){status.textContent=x.message}});
+questionForm.addEventListener("submit",async e=>{e.preventDefault();try{await invoke({action:"add_question",formId:id,questionText:questionText.value,questionType:questionType.value,helpText:helpText.value,required:required.checked,options:options.value.split(/\n/),scaleMin:scaleMin.value,scaleMax:scaleMax.value});questionForm.reset();choiceBox.hidden=true;scaleBox.hidden=true;await load()}catch(x){formsStatus.textContent=x.message}});
 questions.addEventListener("click",async e=>{const b=e.target.closest("[data-delete]");if(!b)return;if(confirm("Slette spørsmålet?")){await invoke({action:"delete_question",questionId:b.dataset.delete});await load()}});
-saveRecipients.addEventListener("click",async()=>{const ids=[...people.querySelectorAll("input:checked")].map(x=>x.value);await invoke({action:"set_recipients",formId:id,personIds:ids});status.textContent=`${ids.length} mottakere lagret.`;await load()});
-publish.addEventListener("click",async()=>{await invoke({action:"set_status",formId:id,status:"published"});status.textContent="Skjemaet er publisert.";await load()});
-closeForm.addEventListener("click",async()=>{await invoke({action:"set_status",formId:id,status:"closed"});status.textContent="Skjemaet er stengt.";await load()});
+saveRecipients.addEventListener("click",async()=>{const ids=[...people.querySelectorAll("input:checked")].map(x=>x.value);await invoke({action:"set_recipients",formId:id,personIds:ids});formsStatus.textContent=`${ids.length} mottakere lagret.`;await load()});
+publish.addEventListener("click",async()=>{await invoke({action:"set_status",formId:id,status:"published"});formsStatus.textContent="Skjemaet er publisert.";await load()});
+closeForm.addEventListener("click",async()=>{await invoke({action:"set_status",formId:id,status:"closed"});formsStatus.textContent="Skjemaet er stengt.";await load()});
 </script></body></html>

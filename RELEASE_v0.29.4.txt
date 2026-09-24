@@ -1,0 +1,12 @@
+Skjemaer v0.29.4
+
+Retter JavaScript-kollisjon med app.js på de fem skjemasidene og viser feil i riktig statusfelt. Svarfristen bruker arrangementenes native dag-, måned- og årsvalg via uendret events.js. app.js, navigasjon og GuideView er uendret.
+
+forms-actions avviser åpning og innsending ved utløpt svarfrist (inkludert nøyaktig fristtidspunkt), skjuler utløpte skjemaer fra Mine skjemaer og validerer fristen ved oppretting. Ingen databasemigrasjon er nødvendig.
+
+Publisering:
+- Publiser de fem endrede HTML-filene via GitHub Pages.
+- Deploy bare supabase/functions/forms-actions til eksisterende prosjekt. Bevar prosjektets eksisterende JWT-verifiseringsinnstilling. GuideView-funksjonene skal ikke deployes.
+
+Test: node tests/forms-deadline.cjs (Node 24+).
+Handler-tester bruker simulerte databasekall; innlogget produksjonstest og VoiceOver må også verifiseres.

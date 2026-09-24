@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GuideView – Førerhundportalen</title>
+<title>Skjemaer – Førerhundportalen</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js?v=0293"></script>
+<script src="events.js"></script>
 </head>
 <body>
 <header><img src="logo.png" alt="Oslo Førerhundklubb"></header>
@@ -17,15 +18,69 @@
 <label for="title">Tittel</label><input id="title" required>
 <label for="description">Beskrivelse</label><textarea id="description"></textarea>
 <label for="responseMode">Svarmodus</label><select id="responseMode"><option value="identified">Navngitte svar</option><option value="anonymous">Anonyme svar</option></select>
-<label for="closesAt">Svarfrist</label><input id="closesAt" type="date">
+<fieldset>
+<legend>Svarfrist</legend>
+<p><label for="deadlineEnabled"><input id="deadlineEnabled" type="checkbox"> Skjemaet har svarfrist</label></p>
+<div id="deadlineFields" hidden>
+<p>
+<label for="deadlineDay">Dag</label><select id="deadlineDay"></select>
+<label for="deadlineMonth">Måned</label><select id="deadlineMonth"></select>
+<label for="deadlineYear">År</label><select id="deadlineYear"></select>
+</p>
+<p id="deadlineDateStatus" class="status" role="status" aria-live="polite"></p>
+<p>Svarfristen gjelder til kl. 23:59:59 på valgt dato, i din lokale tidssone.</p>
+</div>
+</fieldset>
 <button type="submit">Opprett skjema</button></form></section>
 <section><h2>Eksisterende skjemaer</h2><div id="formsList"></div></section></main>
 <script>
-const sb=window.sb||window.supabaseClient;
+const formsStatus=document.getElementById("status");
 async function invoke(body){const {data,error}=await sb.functions.invoke("forms-actions",{body});if(error){let m=error.message;try{const x=await error.context?.json();if(x?.error)m=x.error}catch(_){}throw Error(m)}if(data?.error)throw Error(data.error);return data}
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 </script><script>
-(async()=>{const session=await requireSession();if(!session)return;const me=await getCurrentAppUser();await renderPortalNavigation({current:"forms",me});await load()})().catch(e=>status.textContent=e.message);
+(async()=>{const session=await requireSession();if(!session)return;const me=await getCurrentAppUser();await renderPortalNavigation({current:"forms",me});await load()})().catch(e=>formsStatus.textContent=e.message);
 async function load(){const d=await invoke({action:"admin_list"});formsList.innerHTML=d.forms.length?d.forms.map(f=>`<article><h3><a href="form-edit.html?id=${encodeURIComponent(f.id)}">${esc(f.title)}</a></h3><p>Status: ${esc(f.status)}. Svarmodus: ${f.response_mode==="anonymous"?"Anonym":"Navngitt"}.</p></article>`).join(""):"<p>Ingen skjemaer.</p>"}
-newForm.addEventListener("submit",async e=>{e.preventDefault();try{const d=await invoke({action:"create",title:title.value,description:description.value,responseMode:responseMode.value,closesAt:closesAt.value?new Date(closesAt.value+"T23:59:59").toISOString():null});location.href="form-edit.html?id="+encodeURIComponent(d.form.id)}catch(x){status.textContent=x.message}});
+const creationForm = document.getElementById("newForm");
+const deadlineToggle = document.getElementById("deadlineEnabled");
+const deadlineFields = document.getElementById("deadlineFields");
+populateDateSelects("deadline");
+wireSelectionStatus("deadline", "deadlineDateStatus", "date");
+deadlineToggle.addEventListener("change", () => {
+  deadlineFields.hidden = !deadlineToggle.checked;
+});
+creationForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const button = creationForm.querySelector('button[type="submit"]');
+  if (button.disabled) return;
+  formsStatus.textContent = "";
+  const titleValue = document.getElementById("title").value.trim();
+  if (!titleValue) {
+    formsStatus.textContent = "Skriv en tittel på skjemaet.";
+    document.getElementById("title").focus();
+    return;
+  }
+  const deadline = deadlineToggle.checked ? getDateFromSelects("deadline") : null;
+  if (deadlineToggle.checked && !deadline) {
+    formsStatus.textContent = "Velg en gyldig svarfrist.";
+    document.getElementById("deadlineDay").focus();
+    return;
+  }
+  button.disabled = true;
+  formsStatus.textContent = "Oppretter skjema …";
+  try {
+    const d = await invoke({
+      action: "create",
+      title: titleValue,
+      description: document.getElementById("description").value,
+      responseMode: document.getElementById("responseMode").value,
+      closesAt: deadline ? new Date(deadline + "T23:59:59").toISOString() : null
+    });
+    if (!d?.form?.id) throw Error("Skjematjenesten returnerte ingen skjema-ID. Last siden på nytt og kontroller listen før du prøver igjen.");
+    location.href = "form-edit.html?id=" + encodeURIComponent(d.form.id);
+  } catch (error) {
+    formsStatus.textContent = "Kunne ikke opprette skjema: " + error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
 </script></body></html>
