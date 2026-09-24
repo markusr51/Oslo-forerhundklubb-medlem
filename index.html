@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
-<script src="app.js?v=0293"></script>
+<script src="app.js?v=0300"></script>
 </head>
 <body>
 <header><img src="logo.png" alt="Oslo Førerhundklubb"><h1>Medlemsportal</h1></header>
@@ -78,10 +78,7 @@ loginForm.addEventListener("submit", async e=>{
     return;
   }
 
-  location.href =
-    (me.app_role === "admin" || me.app_role === "system_admin")
-      ? "admin-dashboard.html"
-      : "my-page.html";
+  location.href = await portalHome();
 });
 </script>
 </body>

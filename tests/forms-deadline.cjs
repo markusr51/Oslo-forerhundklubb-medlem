@@ -17,7 +17,7 @@ async function request(action,closesAt,extra={},role='admin'){
  if(table==='form_responses')return {data:insert?{id:'response1'}:action==='my_forms'?[]:null};
  return {data:[]};}return q}};
  class Clock extends Date {static now(){return now}}
- const ctx=vm.createContext({console,Response,Date:Clock,Deno:{env:{get:()=>''},serve:fn=>handler=fn},createClient:()=>({...db,auth:{getUser:async()=>({data:{user:{id:'user1'}}})}})});
+ const ctx=vm.createContext({console,Response,Date:Clock,Deno:{env:{get:()=>''},serve:fn=>handler=fn},servePortal:fn=>handler=fn,createClient:()=>({...db,auth:{getUser:async()=>({data:{user:{id:'user1'}}})}})});
  vm.runInContext(js,ctx);
  const response=await handler(new Request('https://example.test',{method:'POST',headers:{Authorization:'Bearer test'},body:JSON.stringify({action,formId:'form1',title:'Test',answers:{},...extra})}));
  return {status:response.status,body:await response.json(),writes};

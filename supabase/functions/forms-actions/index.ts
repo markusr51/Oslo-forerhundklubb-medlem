@@ -1,6 +1,6 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, servePortal } from "../_shared/portal-scope.ts";
 const U=Deno.env.get("SUPABASE_URL")||"", S=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")||"{}").default||"", P=JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS")||"{}").default||Deno.env.get("SUPABASE_ANON_KEY")||"";
-const H={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST,OPTIONS"};
+const H={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type, x-portal-club","Access-Control-Allow-Methods":"POST,OPTIONS"};
 const J=(x:any,s=200)=>new Response(JSON.stringify(x),{status:s,headers:{...H,"Content-Type":"application/json"}});
 async function C(req:Request){const a=req.headers.get("Authorization")||"";if(!a.startsWith("Bearer "))throw Error("AUTH");const u=createClient(U,P,{global:{headers:{Authorization:a}},auth:{persistSession:false}}),d=createClient(U,S,{auth:{persistSession:false}});const {data:{user}}=await u.auth.getUser();if(!user)throw Error("AUTH");const {data:p}=await d.from("app_users").select("person_id,app_role,active").eq("user_id",user.id).maybeSingle();if(!p?.active||!p.person_id)throw Error("NO_PERSON");return{d,pid:p.person_id,role:p.app_role}}
 // A missing deadline keeps the form open; invalid stored dates fail closed.
@@ -11,7 +11,7 @@ function deadlinePassed(form: {closes_at?: string | null}, now = Date.now()) {
 }
 const A=(r:string)=>["admin","system_admin"].includes(r);
 async function def(d:any,id:string){const q=await d.from("form_questions").select("*").eq("form_id",id).order("position");if(q.error)throw q.error;const ids=(q.data||[]).map((x:any)=>x.id);let o:any[]=[];if(ids.length){const z=await d.from("form_question_options").select("*").in("question_id",ids).order("position");if(z.error)throw z.error;o=z.data||[]}return{questions:q.data||[],options:o}}
-Deno.serve(async req=>{if(req.method==="OPTIONS")return new Response("ok",{headers:H});try{const {d,pid,role}=await C(req),b=await req.json(),a=String(b.action||"");
+servePortal(async req=>{if(req.method==="OPTIONS")return new Response("ok",{headers:H});try{const {d,pid,role}=await C(req),b=await req.json(),a=String(b.action||"");
  if(a==="admin_list"){if(!A(role))return J({error:"Kun administrator."},403);const r=await d.from("forms").select("*").order("created_at",{ascending:false});return r.error?J({error:r.error.message},400):J({forms:r.data||[]})}
  if(a==="people"){if(!A(role))return J({error:"Kun administrator."},403);const r=await d.from("persons").select("id,full_name,email,membership_status").order("full_name");return r.error?J({error:r.error.message},400):J({people:r.data||[]})}
  if(a==="create"){if(!A(role))return J({error:"Kun administrator."},403);if(b.closesAt && (typeof b.closesAt!=="string" || !Number.isFinite(Date.parse(b.closesAt))))return J({error:"Ugyldig svarfrist."},400);const r=await d.from("forms").insert({title:String(b.title||"").trim(),description:String(b.description||"").trim()||null,response_mode:b.responseMode==="anonymous"?"anonymous":"identified",closes_at:b.closesAt||null,created_by_person_id:pid}).select("*").single();return r.error?J({error:r.error.message},400):J({form:r.data})}

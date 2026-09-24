@@ -1,0 +1,74 @@
+project_id = "nitshhgpxmvocepoxahx"
+
+[functions."invite-portal-user"]
+verify_jwt = false
+
+[functions."manage-portal-user"]
+verify_jwt = false
+
+[functions."send-sms"]
+verify_jwt = false
+
+[functions."receive-sms-reply"]
+verify_jwt = false
+
+[functions."send-email"]
+verify_jwt = false
+
+[functions."process-event-automations"]
+verify_jwt = true
+
+[functions."notify-helper-expense"]
+verify_jwt = false
+
+[functions."notify-helper-activity"]
+verify_jwt = false
+
+[functions."receive-email-reply"]
+verify_jwt = false
+
+[functions."send-event-reply-invitations"]
+verify_jwt = false
+
+[functions."fiken-test-connection"]
+verify_jwt = true
+
+[functions."fiken-sync-existing-index"]
+verify_jwt = true
+
+[functions."fiken-sync-existing"]
+verify_jwt = true
+
+[functions."fiken-create-invoice"]
+verify_jwt = true
+
+[functions."fiken-invoice-actions"]
+verify_jwt = true
+
+[functions."fiken-billing-runs"]
+verify_jwt = true
+
+[functions."helper-requests"]
+verify_jwt = true
+
+[functions."fiken-auto-sync"]
+verify_jwt = false
+
+[functions."guideview-session-actions"]
+verify_jwt = true
+
+[functions."guideview-assignment-actions"]
+verify_jwt = true
+
+[functions."guideview-invitations"]
+verify_jwt = true
+
+[functions."guideview-livekit-token"]
+verify_jwt = true
+
+[functions."guideview-routing-actions"]
+verify_jwt = true
+
+[functions."forms-actions"]
+verify_jwt = true
+
