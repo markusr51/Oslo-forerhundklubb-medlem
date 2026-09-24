@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const URL=Deno.env.get("SUPABASE_URL")||"";
 const SERVICE=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")||"{}").service_role||JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")||"{}").default||"";
 const PUB=JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS")||"{}").default||Deno.env.get("SUPABASE_ANON_KEY")||"";
-const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST,OPTIONS"};
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type, x-portal-club","Access-Control-Allow-Methods":"POST,OPTIONS"};
 const json=(x:any,s=200)=>new Response(JSON.stringify(x),{status:s,headers:{...cors,"Content-Type":"application/json"}});
 
 async function ctx(req:Request){
@@ -31,7 +31,7 @@ Deno.serve(async req=>{
    const {data:parts,error:pe}=await admin.from("guideview_session_participants").select("person_id,portal_role,session_role").eq("session_id",sessionId);
    if(pe)return json({error:pe.message},400);
    const ids=[...new Set((parts||[]).map((x:any)=>x.person_id))];
-   let people:any[]=[]; if(ids.length){const r=await admin.from("persons").select("id,full_name").in("id",ids);if(r.error)return json({error:r.error.message},400);people=r.data||[];}
+   let people:any[]=[]; if(ids.length){const r=await admin.from("portal_person_identities").select("id,full_name").in("id",ids);if(r.error)return json({error:r.error.message},400);people=r.data||[];}
    const {data:routes,error:re}=await admin.from("guideview_media_routes").select("*").eq("session_id",sessionId);
    if(re)return json({error:re.message},400);
    // Missing routes mean ON by default.

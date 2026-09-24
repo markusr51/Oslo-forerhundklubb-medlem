@@ -2,10 +2,10 @@
 const {PGlite}=require(process.env.PGLITE_MODULE||'@electric-sql/pglite');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.join(__dirname,'..');
-(async()=>{const db=new PGlite();await db.exec(fs.readFileSync(path.join(__dirname,'access-baseline.sql'),'utf8'));
+(async()=>{const db=new PGlite();await db.exec(fs.readFileSync(path.join(__dirname,'production-schema.sql'),'utf8'));
 for(const file of fs.readdirSync(path.join(root,'supabase/migrations')).sort())await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',file),'utf8'));
 const id=(n)=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
-for(let n=1;n<=5;n++){await db.query('insert into auth.users values($1)',[id(n)]);await db.query('insert into persons values($1,$2)',[id(n),'TEST '+n]);await db.query('insert into app_users values($1,$1,$2,true)',[id(n),n===4?'system_admin':'readonly']);}
+for(let n=1;n<=5;n++){await db.query('insert into auth.users(id) values($1)',[id(n)]);await db.query('insert into portal_person_identities(id,full_name) values($1,$2)',[id(n),'TEST '+n]);await db.query('insert into app_users(user_id,person_id,app_role,active) values($1,$1,$2,true)',[id(n),n===4?'system_admin':'readonly']);await db.query("insert into portal_club_memberships values('00000000-0000-4000-8000-000000000001',$1,'member',true)",[id(n)]);}
 for(let n=10;n<=11;n++)await db.query('insert into dogs(id,name) values($1,$2)',[id(n),'Dog '+n]);
 await db.query('insert into dog_person_links(dog_id,person_id) values($1,$2)',[id(10),id(1)]);
 for(let n=20;n<=21;n++)await db.query('insert into portal_clinics(id,name) values($1,$2)',[id(n),'Clinic '+n]);
@@ -33,8 +33,8 @@ await as(5);assert(!await allowed(10));assert(!await allowed(11));
 await as(4);assert(await allowed(10));assert(await allowed(11));assert((await db.query("select * from portal_access_audit where operation='DELETE'")).rows.length>0);
 await deny('delete from portal_access_audit',[]);
 await db.exec('reset role');
-await db.query("insert into roles values($1,'hjelpetrener')",[id(80)]);
-await db.query('insert into person_roles values($1,$2,true,null,null)',[id(1),id(80)]);
+await db.query("insert into roles(id,name) values($1,'hjelpetrener')",[id(80)]);
+await db.query('insert into person_roles(person_id,role_id,is_active,started_at,ended_at) values($1,$2,true,null,null)',[id(1),id(80)]);
 await db.query("insert into portal_clubs(id,name,active) values($1,'Club A',true),($2,'Club B',true)",[id(60),id(61)]);
 await db.query("insert into portal_club_memberships values($1,$2,'club_admin',true),($3,$4,'club_admin',true)",[id(60),id(2),id(61),id(5)]);
 await as(1);await db.query('select portal_set_helper_clubs($1)',[[id(60),id(61)]]);
@@ -55,6 +55,17 @@ await as(1);const work=(await call('register_ledger',{club_id:id(60),kind:'work'
 assert.equal(Number((await db.query('select amount from portal_club_ledger where id=$1',[work])).rows[0].amount),835);
 await as(2);await call('save_rates',{club_id:id(60),year:2026,individual_followup:500,day_event:900,weekend_event:1700,mileage_rate:4});
 assert.equal(Number((await db.query('select amount from portal_club_ledger where id=$1',[work])).rows[0].amount),835);
+// A second club can set a different price for exactly the same work and year.
+await as(5);await call('save_rates',{club_id:id(61),year:2026,individual_followup:600,day_event:1200,weekend_event:2400,mileage_rate:5});
+await assert.rejects(call('save_rates',{club_id:id(60),year:2026,individual_followup:1,day_event:1,weekend_event:1,mileage_rate:1}),e=>e.code==='42501');
+await as(1);
+await assert.rejects(call('save_rates',{club_id:id(61),year:2026,individual_followup:1,day_event:1,weekend_event:1,mileage_rate:1}),e=>e.code==='42501');
+const otherClubWork=(await call('register_ledger',{club_id:id(61),kind:'work',activity_type:'day_event',kilometers:10,occurred_on:'2026-09-24',description:'Other club rate',amount:1})).id;
+assert.equal(Number((await db.query('select amount from portal_club_ledger where id=$1',[otherClubWork])).rows[0].amount),1250);
+const updatedWork=(await call('register_ledger',{club_id:id(60),kind:'work',activity_type:'day_event',kilometers:10,occurred_on:'2026-09-24',description:'Updated rate',amount:1})).id;
+assert.equal(Number((await db.query('select amount from portal_club_ledger where id=$1',[updatedWork])).rows[0].amount),940);
+assert.equal(Number((await db.query('select amount from portal_club_ledger where id=$1',[work])).rows[0].amount),835);
+console.log('PASS: each club sets its own rates; other boards and helpers cannot change them; new entries use updated rates while historical entries retain their original amount.');
 await as(5);await assert.rejects(call('prepare_receipt',{id:work,name:'forbidden.pdf'}),e=>e.code==='42501');
 await as(1);await call('prepare_receipt',{id:work,name:'retry.pdf'});
 await db.query("insert into storage.objects(bucket_id,name) values('portal-club-receipts',$1)",[id(60)+'/'+work]);
@@ -83,4 +94,4 @@ assert.equal((await db.query("select portal_gv_can_create($1,$2,$3,'follow_up') 
 await as(4);assert.equal((await db.query('select portal_gv_is_admin(null,$1) ok',[id(91)])).rows[0].ok,true);
 console.log('PASS: GuideView administration follows session club; spoofing club input does not grant access; NAV dog access gives no GuideView administration.');
 console.log('PASS: club selection, task status flow, task-owned payer, cross-club ledger/receipt isolation, approval-before-payment, history after leaving and no self-admin.');
-console.log('PASS: isolated PostgreSQL RLS tests: clinic boundary, NAV, owner clinic change, revocation, upload/read isolation, CRUD, support, audit and no privilege escalation.');await db.close();})().catch(e=>{console.error(e.message,e.code);process.exitCode=1});
+console.log('PASS: isolated PostgreSQL RLS tests: clinic boundary, NAV, owner clinic change, revocation, upload/read isolation, CRUD, support, audit and no privilege escalation.');await db.close();})().catch(e=>{console.error(e.message,e.code,e.query,e.where);process.exit(1)});

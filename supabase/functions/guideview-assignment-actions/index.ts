@@ -15,7 +15,7 @@ const PUBLISHABLE_KEY =
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-portal-club",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -44,7 +44,7 @@ Deno.serve(async req=>{
   try{
     const {personId,appRole,admin,userClient}=await context(req);
     const b=await req.json(); const action=String(b.action||"");
-    const clubId=String(b.clubId||'00000000-0000-4000-8000-000000000001');
+    const clubId=String(b.clubId||req.headers.get('x-portal-club')||'00000000-0000-4000-8000-000000000001');
     const {data:scopeAllowed,error:scopeError}=await userClient.rpc('portal_gv_assignment_allowed',{c:clubId,d:b.dogId||null,p:b.personId||null,a:action==='deactivate'?b.assignmentId||null:null});
     if(scopeError)throw scopeError;
     if(scopeAllowed!==true)return json({error:'Ingen administratortilgang til denne tilknytningen.'},403);

@@ -578,6 +578,11 @@ clearMembershipBtn.addEventListener("click",()=>{
   renderMembershipPeople();
 });
 
+async function loadClubMembershipFee(){
+ const {data,error}=await sb.from('portal_club_fees').select('amount').eq('club_id',OSLO_CLUB_ID).eq('year',Number(membershipYear.value)).maybeSingle();
+ if(error)throw error;if(data)membershipAmount.value=String(data.amount);
+}
+membershipYear.addEventListener('change',()=>loadClubMembershipFee().catch(e=>announce(e.message)));
 async function loadBillingSetup(){
   const {data,error}=await sb.functions.invoke("fiken-billing-runs",{body:{action:"setup"}});
   if(error) throw new Error(error.message);
@@ -598,6 +603,7 @@ async function loadBillingSetup(){
       .join("");
 
   membershipYear.value=String(new Date().getFullYear());
+  await loadClubMembershipFee();
 
   membershipBank.innerHTML='<option value="">Velg bankkonto</option>'+
     (data.bankAccounts||[]).map(b=>

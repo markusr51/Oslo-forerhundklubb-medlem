@@ -13,10 +13,17 @@
 - Skoletrener ser aktivt tilordnede hunder. Veterinær/NAV får ikke GuideView-administrasjon gjennom hunderollen.
 - Supportside for klubber og klinikker (navn/aktiv), tilganger, hunderegistrering med bruker, hundetilknytning, skoletrenertilknytning og tilbakekalling. Tidligere kontoadministrasjon brukes fortsatt for kontoer og passordhjelp.
 - Endringslogg som vanlige klienter ikke kan endre eller slette.
-- Fire GuideView-tjenester bruker nye serverkontroller for klubbavgrenset administrasjon av økter, tilknytninger, invitasjoner og lyd-/videoruting. Dette er en autorisert endring av tilgangskontrollene. Eksisterende GuideView-sider og app.js er uendret.
+- Fire GuideView-tjenester bruker nye serverkontroller for klubbavgrenset administrasjon av økter, tilknytninger, invitasjoner og lyd-/videoruting. Dette er en autorisert endring av tilgangskontrollene. GuideViews funksjoner beholdes. app.js får klubbvalg og navigasjon til de nye sidene.
 - Native dag-/måned-/årskontroller gjenbruker events.js.
 
-Nye navigasjonslenker ligger bak `PORTAL_MULTICLUB_ENABLED`; flagget er ikke slått på eller satt inn på de eksisterende sidene. Nye sider og serverfunksjoner må innføres samlet etter ferdig sikkerhetsgjennomgang.
+- Alle eksisterende medlemskap og klubbdata migreres til Oslo etter brukerens bekreftelse. Andre klubber starter uten Oslos medlemmer.
+- Én personlig profil og klubbvise medlemsopplysninger. Primært og sekundært medlemskap bruker samme person og innlogging; private klubbnotater deles ikke.
+- Hver klubb setter sin egen medlemskontingent per år. Beløpet er likt for primære og sekundære medlemmer i den klubben. Ingen eksisterende kontingentsats er antatt eller opprettet automatisk.
+- Honorarsatser og kilometergodtgjørelse lagres separat per klubb og år. Bare eget klubbstyre eller systemadministrator kan endre dem.
+- Gammel og ny oppgjørshistorikk vises samlet uten kopiering av økonomiposter. Nye og gamle satseditorer synkroniseres; historiske beløp beholdes.
+- Servicefunksjonene får klubbavgrensede klienter. Fiken bruker alltid Oslo. Avsender for e-post/SMS og domenet endres ikke.
+
+Ny navigasjon er lagt inn i utviklingsgrenens app.js. Hele grenen må fortsatt innføres samlet etter ferdig verifikasjon; den er ikke publisert i drift.
 
 ## Verifikasjon
 
@@ -24,21 +31,23 @@ Testene bruker isolert PostgreSQL via PGlite og syntetiske data, aldri produksjo
 
 ```
 node tests/access-model.cjs
+node tests/tenant-isolation.cjs
+node tests/service-scope.cjs
 node tests/guideview-club-access.cjs
 node tests/forms-deadline.cjs
 ```
 
-Access-testen kjører alle migrasjonene mot en minimumsmodell av eksisterende skjema med reell RLS som authenticated. Den dekker veterinærgrense, NAV, CRUD, klinikkbytte, dokumentlagring, support, skoletrenertilordning og tilbakekalling, logg, selvvalgte klubber, betalingsklubb, klubbseparasjon, satssnapshots, kvitteringsgjenoppretting og ingen selvopprykk. GuideView-testen kjører de faktiske handlerne med falske databaseklienter, kontrollerer avvisning av en annen klubbs administrator og at feil i tilgangsoppslag ikke slipper gjennom endringer. Eksisterende skjematester består også.
+Access-testen kjører alle migrasjonene mot en skjemakopi av produksjon (uten persondata) med reell RLS som authenticated. Den dekker veterinærgrense, NAV, CRUD, klinikkbytte, dokumentlagring, support, skoletrenertilordning og tilbakekalling, logg, selvvalgte klubber, betalingsklubb, klubbseparasjon, satssnapshots, kvitteringsgjenoppretting og ingen selvopprykk. GuideView-testen kjører de faktiske handlerne med falske databaseklienter, kontrollerer avvisning av en annen klubbs administrator og at feil i tilgangsoppslag ikke slipper gjennom endringer. Eksisterende skjematester består også.
 
-**Begrensning:** Dette er ikke en full kopi av produksjonsskjemaet, og ikke en godkjent VoiceOver-/nettlesertest eller en test av virkelig Supabase-filoverføring.
+Tenant-testen kontrollerer migrering av eksisterende Oslo-poster, to klubbers satser og kontingent, medlemskapstype, separate notater, falskt klubbvalg og lagringstilgang. Service-testen kjører den faktiske avgrensningskoden med simulerte klienter, også samtidige forespørsler.
+
+**Begrensning:** Isolerte tester erstatter ikke PostgREST-integrasjon, VoiceOver-/nettlesertest eller virkelig Supabase-filoverføring.
 
 ## Gjenstår før utrulling
 
-1. Avgrens alle gamle tilgangsveier. Nye RLS-regler alene beskytter ikke data som gamle Edge Functions leser med service_role. `forms-actions` sitt persons-oppslag, `helper-requests`, varslingsmottakere og regnskapsjobber må få klubbavgrensning. `admin_dashboard_data`, `admin_helper_year_overview` og persons-policyene må også tilpasses. Den automatiske Fiken-synken må ikke eksportere andre klubbers personer til Oslos regnskap.
-2. Samle gammel og ny økonomiflyt. Gamle `helper_entries`/`helper_expenses`, arrangementsregistreringer og den nye klubbjournalen er foreløpig separate. De må samles uten dobbeltføring og uten tap av historiske satser/kvitteringer. Eksisterende satser er ikke kopiert til den nye satstabellen.
-3. Kontroller migreringsgrunnlaget: migrasjon 002 tilordner alle nåværende personer til Oslo. Det må erstattes med eller verifiseres mot et riktig medlemsgrunnlag før den kjøres. Nye klubber opprettes senere for demonstrasjon.
-4. Knytt medlemskap, arrangementer, dokumenter, varsler og integrasjoner til klubb, og legg inn klubbvalg i eksisterende arbeidsflyter. GuideViews gamle klient sender foreløpig ikke klubbvalg; bakenden bruker Oslo som kompatibilitetsstandard. Supporttilordning av skoletrener må få eksplisitt klubb før flere klubber aktiveres.
-5. Fullfør økonomikorrigeringer i support, kontaktvisning i oppgjør (viser nå person-ID), samarbeidstilganger og bekreft alle eksisterende dokumentgrenser.
-6. Test mot fullstendig skjema med eksisterende policies, grants og triggers; test migrering av historikk, faktisk filoverføring, innlogging, nettleser og VoiceOver. Deretter deployes migrasjoner og de fire GuideView-tjenestene samlet, navigasjonen aktiveres, og produksjonskontroll utføres.
+1. Sluttkontroller servicefunksjonenes mottakere og kontaktoppslag, også hjelpetrenere uten ordinært medlemskap. Kontroller lagringstilgang til rolletildelte fellesdokumenter uten valgt-klubb-header.
+2. Fullfør visning for personer med bare veterinær-/NAV-tilgang, supportkorrigeringer og gamle oversikters henvisning til samlet oppgjør.
+3. Kontroller PostgREST-relasjoner mot den nye persons-visningen, cacheversjoner, reell filoverføring og innlogging i nettleser. VoiceOver-verifikasjon gjenstår.
+4. Gjennomfør samlet produksjonsmigrering, deploy av servicefunksjoner og publisering av nettsidene med etterkontroll. Oppdater skrivebordskopien separat. Ingen testklubber opprettes i produksjon før demonstrasjon er ønsket.
 
 Ingen domeneendring, Supabase-migrasjon eller GuideView-deploy er utført av denne utviklingsgrenen. Den tidligere skjema-/datorettingen på main er separat og skal beholdes.

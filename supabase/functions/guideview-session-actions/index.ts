@@ -15,7 +15,7 @@ const PUBLISHABLE_KEY =
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-portal-club",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     const { personId, appRole, admin, userClient } = await context(req);
     const body = await req.json();
     const action = String(body.action || "");
-    const clubId=String(body.clubId||'00000000-0000-4000-8000-000000000001');
+    const clubId=String(body.clubId||req.headers.get('x-portal-club')||'00000000-0000-4000-8000-000000000001');
     const {data:scopeAdmin,error:scopeError}=await userClient.rpc('portal_gv_is_admin',{c:clubId,s:body.sessionId||null});
     if(scopeError)throw scopeError;
     const adminOk=scopeAdmin===true;
@@ -85,19 +85,19 @@ Deno.serve(async (req) => {
         return json({ error: "Kun administrator kan hente denne listen." }, 403);
       }
 
-      const { data: role, error: roleError } = await admin
+      const { data: handlerRoles, error: roleError } = await admin
         .from("roles")
         .select("id")
-        .ilike("name", "Ekvipasje")
-        .maybeSingle();
-      console.log("[GV] roles:Ekvipasje", { roleId: role?.id || null, error: roleError?.message || null });
+        .in("name", ["Ekvipasje", "Ekstern ekvipasje"])
+        .eq("club_id",clubId);
+      console.log("[GV] roles:Ekvipasje", { roleId: handlerRoles?.[0]?.id || null, error: roleError?.message || null });
       if (roleError) return json({ error: roleError.message }, 400);
-      if (!role?.id) return json({ error: "Rollen Ekvipasje finnes ikke." }, 500);
+      if (!handlerRoles?.[0]?.id) return json({ error: "Rollen Ekvipasje finnes ikke." }, 500);
 
       const { data: roleLinks, error: roleLinksError } = await admin
         .from("person_roles")
         .select("person_id")
-        .eq("role_id", role.id)
+        .in("role_id", (handlerRoles||[]).map((r:any)=>r.id))
         .eq("is_active", true);
       console.log("[GV] person_roles", { count: roleLinks?.length ?? null, error: roleLinksError?.message || null });
       if (roleLinksError) return json({ error: roleLinksError.message }, 400);
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       if (!personIds.length) return json({ people: [], links: [], dogs: [] });
 
       const { data: people, error: peopleError } = await admin
-        .from("persons")
+        .from("portal_person_identities")
         .select("id,full_name,email")
         .in("id", personIds)
         .order("full_name");

@@ -558,7 +558,7 @@ rateForm.onsubmit=async e=>{
     ["mileage",rateMileage.value]
   ].map(([rate_type,amount])=>({year,rate_type,amount:Number(amount||0)}));
 
-  const {error}=await sb.from("helper_rates").upsert(rows,{onConflict:"year,rate_type"});
+  const {error}=await sb.from("helper_rates").upsert(rows,{onConflict:"club_id,year,rate_type"});
   if(error)return announce("Kunne ikke lagre satser: "+error.message);
   await loadRates(); announce("Satsene er lagret.");
 };

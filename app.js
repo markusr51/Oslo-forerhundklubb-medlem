@@ -1,5 +1,14 @@
 const cfg = window.APP_CONFIG;
-const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabasePublishableKey);
+const OSLO_CLUB_ID = '00000000-0000-4000-8000-000000000001';
+const portalClubId = localStorage.getItem('portalClubId') || OSLO_CLUB_ID;
+const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabasePublishableKey, {
+  global: { fetch: (input, options = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    const headers = new Headers(options.headers || (typeof input !== 'string' ? input.headers : undefined));
+    if (url.startsWith(cfg.supabaseUrl) && /\/(rest|functions|storage)\/v1\//.test(url)) headers.set('x-portal-club', portalClubId);
+    return fetch(input, {...options, headers});
+  }}
+});
 
 async function requireSession(options = {}) {
   const { data: { session } } = await sb.auth.getSession();
@@ -54,7 +63,16 @@ async function getCurrentAppUser() {
     .single();
 
   if (error) throw error;
-  return data;
+  const {data:clubs,error:clubError}=await sb.rpc('portal_my_clubs');
+  if (clubError) throw clubError;
+  if (clubs?.length && !clubs.some(c=>c.club_id===portalClubId)) {
+    localStorage.setItem('portalClubId',clubs[0].club_id);
+    location.reload();
+    throw new Error('Bytter til klubben du har tilgang til.');
+  }
+  const {data:role,error:roleError}=await sb.rpc('current_app_role');
+  if(roleError)throw roleError;
+  return {...data,global_app_role:data.app_role,app_role:role==='portal_user'?'readonly':role,clubs:clubs||[]};
 }
 
 async function portalHome() {
@@ -122,7 +140,7 @@ async function currentPortalCapabilities(me = null) {
       );
       caps.isHelper = caps.personRoles.includes("hjelpetrener");
       caps.isGuideViewUser = caps.personRoles.some(role =>
-        ["ekvipasje", "hjelpetrener", "hjelpetreneraspirant", "skoletrener"].includes(role)
+        ["ekvipasje", "ekstern ekvipasje", "hjelpetrener", "hjelpetreneraspirant", "skoletrener"].includes(role)
       );
     }
   } catch (error) {
@@ -152,8 +170,19 @@ async function renderPortalNavigation({
   const appUser = me || await getCurrentAppUser();
   const caps = await currentPortalCapabilities(appUser);
 
+  let clubChooser=document.getElementById('portalClubChooser');
+  if(!clubChooser){
+    clubChooser=document.createElement('div');clubChooser.id='portalClubChooser';
+    const label=document.createElement('label');label.htmlFor='portalClubSelect';label.textContent='Valgt klubb';
+    const select=document.createElement('select');select.id='portalClubSelect';
+    for(const c of appUser?.clubs||[]){const option=document.createElement('option');option.value=c.club_id;option.textContent=c.name;select.append(option);}
+    select.value=portalClubId;select.addEventListener('change',()=>{localStorage.setItem('portalClubId',select.value);location.href='my-page.html';});
+    clubChooser.append(label,select);clubChooser.hidden=!(appUser?.clubs?.length);nav.before(clubChooser);
+  }
   const memberItems = [
     ["my-page.html", "Min side", "my-page"],
+    ["my-dog.html", "Min hund", "my-dog"],
+    ["clubs.html", "Klubber og oppdrag", "clubs"],
     ["library.html", "Dokumentbibliotek", "library"],
     ["my-expenses.html", "Mine utlegg", "my-expenses"],
     ["my-forms.html", "Mine skjemaer", "my-forms"],
@@ -170,7 +199,7 @@ async function renderPortalNavigation({
 
   if (caps.isHelper) {
     memberItems.push([
-      "helper-settlement.html",
+      "clubs.html",
       "Hjelpetreneroppgjør",
       "helper-settlement"
     ]);
@@ -182,6 +211,8 @@ async function renderPortalNavigation({
   }
 
   const adminItems = [
+    ["my-dog.html", "Min hund", "my-dog"],
+    ["clubs.html", "Klubber og oppdrag", "clubs"],
     ["admin-dashboard.html", "Oversikt", "admin-dashboard"],
     ["members.html", "Medlemmer", "members"],
     ["events.html", "Arrangementer", "events"],
@@ -191,20 +222,21 @@ async function renderPortalNavigation({
     ["groups.html", "Grupper og utvalg", "groups"],
     ["roles.html", "Roller", "roles"],
     ["library.html", "Dokumentbibliotek", "library"],
-    ["helper-settlement.html", "Hjelpetreneroppgjør", "helper-settlement"],
+    ["clubs.html", "Hjelpetreneroppgjør", "helper-settlement"],
     ["helper-overview.html", "Hjelpetreneroversikt", "helper-overview"],
     ["helper-requests.html", "Hjelpetrenerforespørsler", "helper-requests"],
     ["helper-board-overview.html", "Hjelpetreneroppfølging", "helper-board-overview"],
     ["expense-admin.html", "Utlegg", "expense-admin"],
     ["sms.html", "SMS", "sms"],
     ["email.html", "E-post", "email"],
-    ["fiken.html?v=025", "Fiken", "fiken"],
+    ...(portalClubId===OSLO_CLUB_ID ? [["fiken.html?v=025", "Fiken", "fiken"]] : []),
     ["communication-history.html", "Kommunikasjonshistorikk", "communication-history"],
     ["guideview.html", "GuideView", "guideview"]
   ];
 
   if (caps.isSystemAdmin) {
     adminItems.push(["admins.html", "Brukere og tilganger", "admins"]);
+    adminItems.push(["portal-support.html", "Support og klubbtilganger", "portal-support"]);
   }
 
   const items = caps.isAdmin

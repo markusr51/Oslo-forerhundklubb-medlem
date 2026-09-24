@@ -67,7 +67,7 @@
 <p><label for="search">Søk</label><br><input id="search" type="search"></p>
 <table>
 <caption>Medlemsregister</caption>
-<thead><tr><th>Navn</th><th>E-post</th><th>Telefon</th><th>Status</th><th>Handling</th></tr></thead>
+<thead><tr><th>Navn</th><th>E-post</th><th>Telefon</th><th>Status</th><th>Medlemskap</th><th>Handling</th></tr></thead>
 <tbody id="rows"></tbody>
 </table>
 </main>
@@ -75,7 +75,7 @@
 let members=[];
 (async()=>{
   await requireSession();
-  const {data,error}=await sb.from('persons').select('id,full_name,email,phone,membership_status').order('full_name');
+  const {data,error}=await sb.from('persons').select('id,full_name,email,phone,membership_status,membership_kind').order('full_name');
   if(error){announce('Kunne ikke hente medlemmer: '+error.message);return;}
   members=data||[];
   render(members);
@@ -85,7 +85,7 @@ function render(list){
   rows.innerHTML='';
   list.forEach(p=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${p.full_name||''}</td><td>${p.email||''}</td><td>${p.phone||''}</td><td>${p.membership_status||''}</td><td><a href="person.html?id=${encodeURIComponent(p.id)}">Åpne</a></td>`;
+    tr.innerHTML=`<td>${p.full_name||''}</td><td>${p.email||''}</td><td>${p.phone||''}</td><td>${p.membership_status||''}</td><td>${p.membership_kind==='secondary'?'Sekundært medlem':'Primært medlem'}</td><td><a href="person.html?id=${encodeURIComponent(p.id)}">Åpne</a></td>`;
     rows.appendChild(tr);
   });
 }
@@ -94,14 +94,14 @@ search.addEventListener('input',()=>{
   render(members.filter(p=>[p.full_name,p.email,p.phone].some(v=>(v||'').toLowerCase().includes(q))));
 });
 exportBtn.addEventListener('click',async()=>{
-  const {data,error}=await sb.from('persons').select('full_name,email,phone,membership_status,person_roles(is_active,roles(name))').order('full_name');
+  const {data,error}=await sb.from('persons').select('full_name,email,phone,membership_status,membership_kind,person_roles(is_active,roles(name))').order('full_name');
   if(error){announce('Eksport feilet: '+error.message);return;}
-  let csv='Navn,E-post,Telefon,Status,Roller\n';
+  let csv='Navn,E-post,Telefon,Status,Medlemskap,Roller\n';
   for(const p of data){
     const roles=(p.person_roles||[]).filter(r=>r.is_active).map(r=>r.roles?.name).filter(Boolean).join('; ');
-    csv += [p.full_name,p.email,p.phone,p.membership_status,roles].map(csvCell).join(',')+'\n';
+    csv += [p.full_name,p.email,p.phone,p.membership_status,p.membership_kind==='secondary'?'Sekundært medlem':'Primært medlem',roles].map(csvCell).join(',')+'\n';
   }
-  downloadBlob('oslo-forerhundklubb-medlemsliste.csv',csv,'text/csv;charset=utf-8');
+  downloadBlob('medlemsliste-'+portalClubId+'.csv',csv,'text/csv;charset=utf-8');
   announce('Medlemslisten er eksportert.');
 });
 </script>
