@@ -83,7 +83,7 @@ async function portalHome() {
     return "admin-dashboard.html";
   }
 
-  return "my-page.html";
+  return me.clubs?.length ? "my-page.html" : "my-dog.html";
 }
 
 function downloadBlob(filename, content, type) {
@@ -241,7 +241,7 @@ async function renderPortalNavigation({
 
   const items = caps.isAdmin
     ? [["my-page.html", "Min side", "my-page"], ...adminItems]
-    : memberItems;
+    : appUser?.clubs?.length ? memberItems : [["my-dog.html", "Min hund", "my-dog"],["library.html", "Dokumentbibliotek", "library"]];
 
   nav.innerHTML = items.map(([href,label,key]) => {
     const currentAttr = key === current ? ' aria-current="page"' : "";

@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
-<script src="app.js?v=0293"></script>
+<script src="app.js?v=0300"></script>
 <script>
 (async()=>{
   try {
@@ -82,10 +82,11 @@ let members=[];
   announce(members.length+' personer lastet.');
 })();
 function render(list){
+  const escapeHtml=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   rows.innerHTML='';
   list.forEach(p=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${p.full_name||''}</td><td>${p.email||''}</td><td>${p.phone||''}</td><td>${p.membership_status||''}</td><td>${p.membership_kind==='secondary'?'Sekundært medlem':'Primært medlem'}</td><td><a href="person.html?id=${encodeURIComponent(p.id)}">Åpne</a></td>`;
+    tr.innerHTML=`<td>${escapeHtml(p.full_name||'')}</td><td>${escapeHtml(p.email||'')}</td><td>${escapeHtml(p.phone||'')}</td><td>${escapeHtml(p.membership_status||'')}</td><td>${p.membership_kind==='secondary'?'Sekundært medlem':'Primært medlem'}</td><td><a href="person.html?id=${encodeURIComponent(p.id)}">Åpne</a></td>`;
     rows.appendChild(tr);
   });
 }

@@ -14,7 +14,7 @@ function client(url,key,options){
  }};return query;}};
 }
 let source=fs.readFileSync(path.join(__dirname,'../supabase/functions/_shared/portal-scope.ts'),'utf8');
-source=stripTypeScriptTypes(source.replace(/^import .*;\n/gm,'').replace(/export function/g,'function'));
+source=stripTypeScriptTypes(source.replace(/^import .*;\n/gm,'').replace(/^export /gm,''));
 const context=vm.createContext({baseClient:client,AsyncLocalStorage,Request,Response,console,Deno:{env:{get:()=>''},serve:h=>{handler=h}}});
 vm.runInContext(source+'\nglobalThis.api={scopeDatabase,createClient,servePortal};',context);
 const {scopeDatabase,createClient,servePortal}=context.api;

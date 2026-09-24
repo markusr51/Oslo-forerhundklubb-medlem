@@ -70,6 +70,10 @@ await as(5);await assert.rejects(call('prepare_receipt',{id:work,name:'forbidden
 await as(1);await call('prepare_receipt',{id:work,name:'retry.pdf'});
 await db.query("insert into storage.objects(bucket_id,name) values('portal-club-receipts',$1)",[id(60)+'/'+work]);
 await assert.rejects(call('register_ledger',{club_id:id(60),kind:'work',activity_type:'day_event',occurred_on:'2027-09-24',description:'Missing rate',amount:1}));
+await as(2);await assert.rejects(db.query("select portal_correct_settlement('portal_club_ledger',$1,850,'Test correction')",[work]),e=>e.code==='42501');
+await as(4);await db.query("select portal_correct_settlement('portal_club_ledger',$1,850,'Test correction')",[work]);
+assert.equal(Number((await db.query('select amount from portal_club_ledger where id=$1',[work])).rows[0].amount),850);
+assert.equal((await db.query("select new_value->>'reason' reason from portal_access_audit where operation='SUPPORT_CORRECTION' and entity_id=$1",[work])).rows[0].reason,'Test correction');
 console.log('PASS: fixed honorarium plus mileage calculated server-side; submitted amount ignored for standard rates; historical amounts remain fixed; receipt retries preserve ledger ID.');
 await as(1);await db.query('select portal_set_helper_clubs($1)',[[]]);assert.equal((await db.query('select * from portal_club_ledger where id=$1',[entry])).rows.length,1);
 assert.equal((await db.query('select portal_helper_for($1) ok',[id(60)])).rows[0].ok,false);

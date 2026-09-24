@@ -211,7 +211,9 @@ async function getContext(
         true
       );
 
-  const isHelper =
+  const {data:helperMemberships,error:helperMembershipError}=await admin.from("portal_club_memberships").select("person_id").eq("person_id",appUser.person_id).eq("role","helper").eq("active",true);
+  if(helperMembershipError)throw helperMembershipError;
+  const isHelper = !!helperMemberships?.length &&
     (helperRoles || [])
       .some(
         row =>
@@ -245,7 +247,7 @@ async function getPerson(
     error,
   } =
     await admin
-      .from("persons")
+      .from("portal_service_contacts")
       .select(
         "id,full_name,email,phone"
       )
@@ -485,6 +487,10 @@ async function notifyHelpers(
       ),
     ];
 
+  const {data:workingHelpers,error:workingError}=await admin.from("portal_club_memberships").select("person_id").eq("role","helper").eq("active",true);
+  if(workingError)throw workingError;
+  for(let i=ids.length-1;i>=0;i--)if(!workingHelpers?.some((m:any)=>m.person_id===ids[i]))ids.splice(i,1);
+
   if (!ids.length) {
     return;
   }
@@ -493,7 +499,7 @@ async function notifyHelpers(
     data: helpers,
   } =
     await admin
-      .from("persons")
+      .from("portal_service_contacts")
       .select(
         "id,full_name,email,phone"
       )

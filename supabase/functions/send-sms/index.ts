@@ -1,4 +1,4 @@
-import { createClient, servePortal } from "../_shared/portal-scope.ts";
+import { createClient, servePortal, validateMessageScope } from "../_shared/portal-scope.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 
@@ -304,6 +304,8 @@ servePortal(async (req) => {
         400
       );
     }
+
+    await validateMessageScope(adminClient,eventId,rawRecipients);
 
     const recipients:
       Recipient[] = [];

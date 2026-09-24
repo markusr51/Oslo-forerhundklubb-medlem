@@ -1,6 +1,6 @@
 <!doctype html><html lang="no"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>E-post hurtigpåmelding – Oslo Førerhundklubb</title><link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js?v=0300"></script></head>
 <body><nav id="portalNav" aria-label="Hovedmeny"></nav><main><h1>E-post hurtigpåmelding</h1>
 <p id="status" class="status" role="status" aria-live="polite">Laster …</p>
 <p>Velg arrangement og mottakere. Hver mottaker får en personlig svaradresse og kan svare JA eller NEI.</p>
@@ -13,7 +13,7 @@
 <button type="submit">Send invitasjoner</button></form></main>
 <script>
 let me=null,people=[],events=[];
-function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c]));}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function updateRecipientStatus(){const n=personSelect.selectedOptions.length;recipientStatus.textContent=n?`Valgt ${n} mottaker${n===1?"":"e"}.`:"Ingen mottakere valgt.";}
 function renderPeople(){const q=personSearch.value.trim().toLowerCase();personSelect.innerHTML=people.filter(p=>!q||String(p.full_name||"").toLowerCase().includes(q)||String(p.email||"").toLowerCase().includes(q)).map(p=>`<option value="${p.id}">${esc(p.full_name)} – ${esc(p.email)}</option>`).join("");updateRecipientStatus();}
 personSearch.oninput=renderPeople;personSelect.onchange=updateRecipientStatus;

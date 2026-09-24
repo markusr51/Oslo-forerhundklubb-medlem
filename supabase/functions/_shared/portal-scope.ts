@@ -4,7 +4,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 type Scope={clubId:string,personId:string,userId:string};
 const scopes=new AsyncLocalStorage<Scope>();
 const OSLO='00000000-0000-4000-8000-000000000001';
-const scopedTables=new Set(["admin_notifications", "communication_history", "email_campaigns", "email_messages", "event_automation_rules", "event_documents", "event_email_reply_tokens", "event_notes", "event_participants", "event_people", "event_registration_answers", "event_registration_fields", "event_template_automations", "event_template_documents", "event_templates", "events", "fiken_billing_run_items", "fiken_billing_runs", "fiken_contacts", "fiken_invoices", "form_answers", "form_question_options", "form_questions", "form_recipients", "form_responses", "forms", "general_expenses", "group_members", "groups", "helper_entries", "helper_expenses", "helper_rates", "helper_requests", "integration_sync_status", "library_documents", "library_folder_permissions", "library_folders", "person_roles", "roles", "sms_campaigns", "sms_messages", "sms_replies"]);
+const scopedTables=new Set(["portal_service_contacts", "portal_club_memberships", "admin_notifications", "communication_history", "email_campaigns", "email_messages", "event_automation_rules", "event_documents", "event_email_reply_tokens", "event_notes", "event_participants", "event_people", "event_registration_answers", "event_registration_fields", "event_template_automations", "event_template_documents", "event_templates", "events", "fiken_billing_run_items", "fiken_billing_runs", "fiken_contacts", "fiken_invoices", "form_answers", "form_question_options", "form_questions", "form_recipients", "form_responses", "forms", "general_expenses", "group_members", "groups", "helper_entries", "helper_expenses", "helper_rates", "helper_requests", "integration_sync_status", "library_documents", "library_folder_permissions", "library_folders", "person_roles", "roles", "sms_campaigns", "sms_messages", "sms_replies"]);
 const secret=()=>Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS')||'{}').service_role||JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS')||'{}').default;
 
 // Every query and mutation is scoped, including calls made with service_role.
@@ -69,4 +69,11 @@ export function createOsloClient(...args:any[]){
 // Only trusted, already authenticated background jobs use this entry point.
 export function createClubClient(clubId:string){
  return scopeDatabase(baseClient(Deno.env.get('SUPABASE_URL')!,secret()!,{global:{headers:{'x-portal-club':clubId}},auth:{persistSession:false}}),clubId);
+}
+
+// Validate linked entities BEFORE an external message is sent.
+export async function validateMessageScope(client:any,eventId:string|null,recipients:any[]){
+ if(eventId){const {data,error}=await client.from('events').select('id').eq('id',eventId).maybeSingle();if(error||!data)throw Error('Arrangementet er ikke tilgjengelig i valgt klubb.');}
+ const ids=[...new Set(recipients.map(r=>r.personId).filter(Boolean))];
+ if(ids.length){const {data,error}=await client.from('portal_service_contacts').select('id').in('id',ids);if(error||ids.some(id=>!data?.some((p:any)=>p.id===id)))throw Error('En mottaker tilhører ikke valgt klubb.');}
 }

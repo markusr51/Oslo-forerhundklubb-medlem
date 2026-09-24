@@ -1,33 +1,28 @@
-# Flerklubb, Min hund og support — utviklingsgren
+# Flerklubb — utrulling 24. september 2026
 
-**Ikke produksjonsklar. Ikke kjør migrasjonene på den aktive portalen ennå.** Domeneflytting er utsatt. Det er ikke opprettet testklubber eller nye tilganger i produksjon.
+## Omfang
 
-## Implementert
+- Alle 77 eksisterende personer og deres medlemskap er tilordnet Oslo Førerhundklubb. Det finnes én klubb i produksjon; ingen demoklubber er opprettet.
+- Én personlig profil og innlogging, med primært/sekundært medlemskap og separate klubbnotater. Ekvipasje/ekstern ekvipasje følger medlemskapstypen for kvalifiserte personer.
+- Klubbvalg, avgrensede medlemssøk, arrangementer, skjemaer, kommunikasjon, dokumenter og økonomi. Servicefunksjoner avgrenser også forespørsler som bruker servertilgang.
+- Hver klubb bestemmer kontingent, honorarer og kilometergodtgjørelse per år. Primære og sekundære medlemmer betaler samme kontingent i klubben. Kontingent må settes av klubben; ingen tidligere kontingentsats er gjettet.
+- Hjelpetrenere velger selv arbeidsklubber. Valget gir ikke tilgang til medlemsregister eller styrefunksjoner. Oslos eksisterende kvalifiserte hjelpetrenere er tilknyttet Oslo som utgangspunkt.
+- Felles oppgjørsvisning inkluderer gamle og nye registreringer uten dobbeltføring. Historiske satser/beløp beholdes. Systemadministrator kan korrigere beløp med logget begrunnelse.
+- Brukeren velger veterinærklinikk. Veterinærer får bare klinikkens tilknyttede hunder; NAV får alle hunder; skoletrenere får aktivt tilordnede hunder. Hundedata og hundedokumenter har egne tilgangskontroller.
+- Support kan administrere klubber, klinikker, medlemskap og hundetilknytninger. Eksisterende kontoadministrasjon beholdes. GuideViews funksjoner beholdes med klubbavgrenset administrasjon.
+- Fiken er fortsatt bare Oslo. Domene, e-postavsender og SMS-avsender er uendret.
 
-- Klubber og klubbroller. Hjelpetrenere velger selv hvilke klubber de arbeider for; valget gir aldri styretilgang.
-- Klubbvise oppdrag, atomisk tildeling, fullføring og avlysning. Tilknyttet oppdrag bestemmer betalingsklubben på serveren.
-- Egne oppgjør og kvitteringer per klubb, med RLS og private lagringsområder. Historikk beholdes etter utmelding.
-- Individuell oppfølging, dagsarrangement, helgearrangement og kilometer. Serveren beregner honoraret med registreringsårets klubbsatser. Satsene lagres med posten og påvirkes ikke av senere satsendringer. Annet honorar og utlegg registreres med eget beløp.
-- Godkjenning før utbetalingsmarkering, CSV per klubb og ny opplasting av kvittering til samme post ved feil, uten nytt beløp.
-- Veterinærtilgang følger brukerens klinikkvalg. NAV har hundetilgang på tvers av klubber. Begge kan endre hundens profil, opprette/endre/slette opplysninger og laste opp/ned/slette hundedokumenter. Klinikkskifte trekker tilbake tidligere klinikks nye forespørsler. Nedlastingslenker varer 60 sekunder.
-- Skoletrener ser aktivt tilordnede hunder. Veterinær/NAV får ikke GuideView-administrasjon gjennom hunderollen.
-- Supportside for klubber og klinikker (navn/aktiv), tilganger, hunderegistrering med bruker, hundetilknytning, skoletrenertilknytning og tilbakekalling. Tidligere kontoadministrasjon brukes fortsatt for kontoer og passordhjelp.
-- Endringslogg som vanlige klienter ikke kan endre eller slette.
-- Fire GuideView-tjenester bruker nye serverkontroller for klubbavgrenset administrasjon av økter, tilknytninger, invitasjoner og lyd-/videoruting. Dette er en autorisert endring av tilgangskontrollene. GuideViews funksjoner beholdes. app.js får klubbvalg og navigasjon til de nye sidene.
-- Native dag-/måned-/årskontroller gjenbruker events.js.
+## Gjennomført kontroll
 
-- Alle eksisterende medlemskap og klubbdata migreres til Oslo etter brukerens bekreftelse. Andre klubber starter uten Oslos medlemmer.
-- Én personlig profil og klubbvise medlemsopplysninger. Primært og sekundært medlemskap bruker samme person og innlogging; private klubbnotater deles ikke.
-- Hver klubb setter sin egen medlemskontingent per år. Beløpet er likt for primære og sekundære medlemmer i den klubben. Ingen eksisterende kontingentsats er antatt eller opprettet automatisk.
-- Honorarsatser og kilometergodtgjørelse lagres separat per klubb og år. Bare eget klubbstyre eller systemadministrator kan endre dem.
-- Gammel og ny oppgjørshistorikk vises samlet uten kopiering av økonomiposter. Nye og gamle satseditorer synkroniseres; historiske beløp beholdes.
-- Servicefunksjonene får klubbavgrensede klienter. Fiken bruker alltid Oslo. Avsender for e-post/SMS og domenet endres ikke.
+Migrasjon 001–016 ble kjørt samlet i én transaksjon, med automatisk avbrudd ved uventede endringer i eksisterende data i 52 tabeller. Det samme utrullingsskriptet ble først prøvd i isolert PostgreSQL med en lokal sikkerhetskopi. Alle kontrollene bestod. Migrasjon 017 gir serverrollen eksplisitte leserettigheter til de nye klubboppslagene og nødvendige funksjonsrettigheter for visningene.
 
-Ny navigasjon er lagt inn i utviklingsgrenens app.js. Hele grenen må fortsatt innføres samlet etter ferdig verifikasjon; den er ikke publisert i drift.
+Sikkerhetskopi av produksjonsskjema og data er lagret utenfor Git-repoet i arbeidsområdets `work/audit/pre-rollout-*`. Ingen produksjonsdata er lagt i GitHub. Migrasjonene ble anvendt via Supabase Management API (`db query`), ikke gjennom `db push`; ikke kjør 001–017 om igjen mot denne databasen.
 
-## Verifikasjon
+Alle 24 tjenester er deployet og ACTIVE, med opprinnelige JWT-innstillinger. Tjenester som kalles fra nettleseren svarer på CORS-kontroll med klubbheaderen tillatt. Beskyttede bakgrunnsjobber/webhooks avviser kall uten sine eksisterende nøkler. PostgREST gjenkjenner persons-relasjonene og avviser anonyme oppslag. En faktisk databasekontroll med supportrollen viser 77 medlemmer, én klubb og seks tidligere oppgjørsposter.
 
-Testene bruker isolert PostgreSQL via PGlite og syntetiske data, aldri produksjonsdatabasen. Installer Node 24 og `@electric-sql/pglite`, og kjør:
+Testene dekker migrering, klubbgrenser, forfalsket klubbvalg, private notater, kontingent/rater, gamle beløp, veterinær/NAV/skoletrener, filtilgang, tilbakekalling, supportkorrigering og samtidige serviceforespørsler. Den tidligere Opprett skjema-feilen er fortsatt rettet, med native datovelgere og synlig feilmelding ved tjenestefeil.
+
+Kjør med Node 24 og `@electric-sql/pglite` (alternativt angi PGLITE_MODULE):
 
 ```
 node tests/access-model.cjs
@@ -37,17 +32,8 @@ node tests/guideview-club-access.cjs
 node tests/forms-deadline.cjs
 ```
 
-Access-testen kjører alle migrasjonene mot en skjemakopi av produksjon (uten persondata) med reell RLS som authenticated. Den dekker veterinærgrense, NAV, CRUD, klinikkbytte, dokumentlagring, support, skoletrenertilordning og tilbakekalling, logg, selvvalgte klubber, betalingsklubb, klubbseparasjon, satssnapshots, kvitteringsgjenoppretting og ingen selvopprykk. GuideView-testen kjører de faktiske handlerne med falske databaseklienter, kontrollerer avvisning av en annen klubbs administrator og at feil i tilgangsoppslag ikke slipper gjennom endringer. Eksisterende skjematester består også.
+## Praktiske begrensninger
 
-Tenant-testen kontrollerer migrering av eksisterende Oslo-poster, to klubbers satser og kontingent, medlemskapstype, separate notater, falskt klubbvalg og lagringstilgang. Service-testen kjører den faktiske avgrensningskoden med simulerte klienter, også samtidige forespørsler.
+En manuell gjennomgang med VoiceOver og faktisk innlogget filopplasting/skjemaoppretting er ikke utført. Slike handlinger er testet i isolerte database-/handler-/DOM-tester, mens produksjonskontrollene er uten utsendelser, fakturering eller syntetiske medlems-/oppgjørsposter. Nettlesere som allerede har portalen åpen må laste siden på nytt for å hente `app.js?v=0300`.
 
-**Begrensning:** Isolerte tester erstatter ikke PostgREST-integrasjon, VoiceOver-/nettlesertest eller virkelig Supabase-filoverføring.
-
-## Gjenstår før utrulling
-
-1. Sluttkontroller servicefunksjonenes mottakere og kontaktoppslag, også hjelpetrenere uten ordinært medlemskap. Kontroller lagringstilgang til rolletildelte fellesdokumenter uten valgt-klubb-header.
-2. Fullfør visning for personer med bare veterinær-/NAV-tilgang, supportkorrigeringer og gamle oversikters henvisning til samlet oppgjør.
-3. Kontroller PostgREST-relasjoner mot den nye persons-visningen, cacheversjoner, reell filoverføring og innlogging i nettleser. VoiceOver-verifikasjon gjenstår.
-4. Gjennomfør samlet produksjonsmigrering, deploy av servicefunksjoner og publisering av nettsidene med etterkontroll. Oppdater skrivebordskopien separat. Ingen testklubber opprettes i produksjon før demonstrasjon er ønsket.
-
-Ingen domeneendring, Supabase-migrasjon eller GuideView-deploy er utført av denne utviklingsgrenen. Den tidligere skjema-/datorettingen på main er separat og skal beholdes.
+Ved senere feil: behold klubbavgrensningen. Ikke legg tilbake gamle uavgrensede servicefunksjoner etter at nye klubber er tatt i bruk. Bruk sikkerhetskopien til målrettet gjenoppretting, og kontroller eventuelle nye registreringer før data erstattes.
